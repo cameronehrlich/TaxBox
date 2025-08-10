@@ -1,0 +1,158 @@
+import Foundation
+import UniformTypeIdentifiers
+import AppKit
+
+enum DocStatus: String, CaseIterable, Identifiable, Codable { case done = "Done", waiting = "Waiting", needsDoc = "Needs Doc", ready = "Ready"; var id: String { rawValue } }
+
+struct Sidecar: Codable, Equatable, Hashable {
+    var name: String
+    var amount: Double?
+    var notes: String
+    var status: DocStatus
+    var year: Int
+    var createdAt: Date
+    var sourcePath: String?
+}
+
+struct DocumentItem: Identifiable, Hashable {
+    let id = UUID()
+    var url: URL
+    var sidecarURL: URL
+    var meta: Sidecar
+
+    var filename: String { url.lastPathComponent }
+}
+
+final class AppModel: ObservableObject {
+    @Published var items: [DocumentItem] = []
+    @Published var years: [Int] = []
+    @Published var selectedYear: Int? = Calendar.current.component(.year, from: .now)
+    @Published var statusFilter: DocStatus? = nil
+    @Published var query: String = ""
+    @Published var copyOnImport: Bool = true
+
+    let fm = FileManager.default
+    var root: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Tax Box")
+
+    func bootstrap() {
+        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+        reload()
+    }
+
+    func openRootInFinder() { NSWorkspace.shared.activateFileViewerSelecting([root]) }
+
+    func reload() {
+        var found: [DocumentItem] = []
+        var ys = Set<Int>()
+        if let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+            for yURL in entries where (try? yURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                if let y = Int(yURL.lastPathComponent) {
+                    ys.insert(y)
+                    if let files = try? fm.contentsOfDirectory(at: yURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                        for f in files where f.pathExtension.lowercased() != "json" {
+                            let sc = f.appendingPathExtension("meta.json")
+                            if let meta = loadSidecar(sc, fallbackFor: f, year: y) {
+                                found.append(DocumentItem(url: f, sidecarURL: sc, meta: meta))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        DispatchQueue.main.async {
+            self.years = ys.sorted(by: >)
+            if self.selectedYear == nil { self.selectedYear = self.years.first }
+            self.items = found.sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+        }
+    }
+
+    func loadSidecar(_ url: URL, fallbackFor file: URL, year: Int) -> Sidecar? {
+        if let data = try? Data(contentsOf: url), let sc = try? JSONDecoder.iso.decode(Sidecar.self, from: data) { return sc }
+        let base = file.deletingPathExtension().lastPathComponent
+        return Sidecar(name: base, amount: nil, notes: "", status: .done, year: year, createdAt: .now, sourcePath: nil)
+    }
+
+    func saveSidecar(_ meta: Sidecar, to url: URL) {
+        if let data = try? JSONEncoder.iso.encode(meta) { try? data.write(to: url, options: [.atomic]) }
+        setFinderTags(for: url.deletingPathExtension(), year: meta.year, status: meta.status)
+    }
+
+    func importURLs(_ urls: [URL], with draft: DraftMeta) {
+        for src in urls { importURL(src, with: draft) }
+        reload()
+    }
+
+    private func importURL(_ src: URL, with draft: DraftMeta) {
+        let yearURL = root.appending(path: String(draft.year))
+        try? fm.createDirectory(at: yearURL, withIntermediateDirectories: true)
+        let dest = uniqueDestination(in: yearURL, original: src.lastPathComponent)
+        do {
+            if copyOnImport { try fm.copyItem(at: src, to: dest) } else { try fm.moveItem(at: src, to: dest) }
+            let sidecarURL = dest.appendingPathExtension("meta.json")
+            let meta = Sidecar(name: draft.name, amount: draft.amount, notes: draft.notes, status: draft.status, year: draft.year, createdAt: .now, sourcePath: src.path)
+            saveSidecar(meta, to: sidecarURL)
+        } catch { print("Import failed: \(error)") }
+    }
+
+    private func uniqueDestination(in folder: URL, original: String) -> URL {
+        var attempt = folder.appending(path: original)
+        var idx = 1
+        while fm.fileExists(atPath: attempt.path) {
+            let base = URL(filePath: original).deletingPathExtension().lastPathComponent
+            let ext = URL(filePath: original).pathExtension
+            attempt = folder.appending(path: "\(base)-\(idx).\(ext)")
+            idx += 1
+        }
+        return attempt
+    }
+
+    func update(_ item: DocumentItem) {
+        saveSidecar(item.meta, to: item.sidecarURL)
+        // Update the item in place instead of reloading everything
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index] = item
+        }
+    }
+
+    func filteredItems() -> [DocumentItem] {
+        items.filter { it in
+            (selectedYear == nil || it.meta.year == selectedYear!) &&
+            (statusFilter == nil || it.meta.status == statusFilter!) &&
+            (query.isEmpty || it.meta.name.localizedCaseInsensitiveContains(query) || it.filename.localizedCaseInsensitiveContains(query) || it.meta.notes.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    var totalAmount: Double {
+        filteredItems().compactMap{ $0.meta.amount }.reduce(0, +)
+    }
+    
+    func deleteItem(_ item: DocumentItem) {
+        do {
+            try fm.removeItem(at: item.url)
+            try? fm.removeItem(at: item.sidecarURL)
+            reload()
+        } catch {
+            print("Failed to delete: \(error)")
+        }
+    }
+    
+    func deleteItems(_ items: Set<DocumentItem>) {
+        for item in items {
+            do {
+                try fm.removeItem(at: item.url)
+                try? fm.removeItem(at: item.sidecarURL)
+            } catch {
+                print("Failed to delete \(item.filename): \(error)")
+            }
+        }
+        reload()
+    }
+}
+
+extension JSONEncoder { static let iso: JSONEncoder = { let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]; e.dateEncodingStrategy = .iso8601; return e }() }
+extension JSONDecoder { static let iso: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }() }
+
+func setFinderTags(for sidecarURL: URL, year: Int, status: DocStatus) {
+    // Finder tags functionality temporarily disabled
+    // This would require additional entitlements and proper URL resource handling
+}

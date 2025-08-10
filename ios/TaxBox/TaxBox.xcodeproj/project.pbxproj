@@ -1,0 +1,556 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		7DBC2A7F2E4871D1009D22B5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7DBC2A682E4871CF009D22B5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7DBC2A6F2E4871CF009D22B5;
+			remoteInfo = TaxBox;
+		};
+		7DBC2A892E4871D1009D22B5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7DBC2A682E4871CF009D22B5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7DBC2A6F2E4871CF009D22B5;
+			remoteInfo = TaxBox;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		7DBC2A702E4871CF009D22B5 /* TaxBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TaxBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7DBC2A7E2E4871D1009D22B5 /* TaxBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TaxBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7DBC2A882E4871D1009D22B5 /* TaxBoxUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TaxBoxUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		7DBC2A722E4871CF009D22B5 /* TaxBox */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TaxBox;
+			sourceTree = "<group>";
+		};
+		7DBC2A812E4871D1009D22B5 /* TaxBoxTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TaxBoxTests;
+			sourceTree = "<group>";
+		};
+		7DBC2A8B2E4871D1009D22B5 /* TaxBoxUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TaxBoxUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7DBC2A6D2E4871CF009D22B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A7B2E4871D1009D22B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A852E4871D1009D22B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		7DBC2A672E4871CF009D22B5 = {
+			isa = PBXGroup;
+			children = (
+				7DBC2A722E4871CF009D22B5 /* TaxBox */,
+				7DBC2A812E4871D1009D22B5 /* TaxBoxTests */,
+				7DBC2A8B2E4871D1009D22B5 /* TaxBoxUITests */,
+				7DBC2A712E4871CF009D22B5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7DBC2A712E4871CF009D22B5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7DBC2A702E4871CF009D22B5 /* TaxBox.app */,
+				7DBC2A7E2E4871D1009D22B5 /* TaxBoxTests.xctest */,
+				7DBC2A882E4871D1009D22B5 /* TaxBoxUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7DBC2A6F2E4871CF009D22B5 /* TaxBox */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7DBC2A922E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBox" */;
+			buildPhases = (
+				7DBC2A6C2E4871CF009D22B5 /* Sources */,
+				7DBC2A6D2E4871CF009D22B5 /* Frameworks */,
+				7DBC2A6E2E4871CF009D22B5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7DBC2A722E4871CF009D22B5 /* TaxBox */,
+			);
+			name = TaxBox;
+			packageProductDependencies = (
+			);
+			productName = TaxBox;
+			productReference = 7DBC2A702E4871CF009D22B5 /* TaxBox.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7DBC2A7D2E4871D1009D22B5 /* TaxBoxTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7DBC2A952E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBoxTests" */;
+			buildPhases = (
+				7DBC2A7A2E4871D1009D22B5 /* Sources */,
+				7DBC2A7B2E4871D1009D22B5 /* Frameworks */,
+				7DBC2A7C2E4871D1009D22B5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7DBC2A802E4871D1009D22B5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7DBC2A812E4871D1009D22B5 /* TaxBoxTests */,
+			);
+			name = TaxBoxTests;
+			packageProductDependencies = (
+			);
+			productName = TaxBoxTests;
+			productReference = 7DBC2A7E2E4871D1009D22B5 /* TaxBoxTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7DBC2A872E4871D1009D22B5 /* TaxBoxUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7DBC2A982E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBoxUITests" */;
+			buildPhases = (
+				7DBC2A842E4871D1009D22B5 /* Sources */,
+				7DBC2A852E4871D1009D22B5 /* Frameworks */,
+				7DBC2A862E4871D1009D22B5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7DBC2A8A2E4871D1009D22B5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7DBC2A8B2E4871D1009D22B5 /* TaxBoxUITests */,
+			);
+			name = TaxBoxUITests;
+			packageProductDependencies = (
+			);
+			productName = TaxBoxUITests;
+			productReference = 7DBC2A882E4871D1009D22B5 /* TaxBoxUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7DBC2A682E4871CF009D22B5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					7DBC2A6F2E4871CF009D22B5 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					7DBC2A7D2E4871D1009D22B5 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 7DBC2A6F2E4871CF009D22B5;
+					};
+					7DBC2A872E4871D1009D22B5 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 7DBC2A6F2E4871CF009D22B5;
+					};
+				};
+			};
+			buildConfigurationList = 7DBC2A6B2E4871CF009D22B5 /* Build configuration list for PBXProject "TaxBox" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 7DBC2A672E4871CF009D22B5;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7DBC2A712E4871CF009D22B5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7DBC2A6F2E4871CF009D22B5 /* TaxBox */,
+				7DBC2A7D2E4871D1009D22B5 /* TaxBoxTests */,
+				7DBC2A872E4871D1009D22B5 /* TaxBoxUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7DBC2A6E2E4871CF009D22B5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A7C2E4871D1009D22B5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A862E4871D1009D22B5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7DBC2A6C2E4871CF009D22B5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A7A2E4871D1009D22B5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DBC2A842E4871D1009D22B5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7DBC2A802E4871D1009D22B5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7DBC2A6F2E4871CF009D22B5 /* TaxBox */;
+			targetProxy = 7DBC2A7F2E4871D1009D22B5 /* PBXContainerItemProxy */;
+		};
+		7DBC2A8A2E4871D1009D22B5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7DBC2A6F2E4871CF009D22B5 /* TaxBox */;
+			targetProxy = 7DBC2A892E4871D1009D22B5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		7DBC2A902E4871D1009D22B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7DBC2A912E4871D1009D22B5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		7DBC2A932E4871D1009D22B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TaxBox/TaxBox.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBox;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7DBC2A942E4871D1009D22B5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TaxBox/TaxBox.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBox;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7DBC2A962E4871D1009D22B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBoxTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TaxBox.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TaxBox";
+			};
+			name = Debug;
+		};
+		7DBC2A972E4871D1009D22B5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBoxTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TaxBox.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TaxBox";
+			};
+			name = Release;
+		};
+		7DBC2A992E4871D1009D22B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBoxUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = TaxBox;
+			};
+			name = Debug;
+		};
+		7DBC2A9A2E4871D1009D22B5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 842K77RHSG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ThirtySeven.TaxBoxUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = TaxBox;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7DBC2A6B2E4871CF009D22B5 /* Build configuration list for PBXProject "TaxBox" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DBC2A902E4871D1009D22B5 /* Debug */,
+				7DBC2A912E4871D1009D22B5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7DBC2A922E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBox" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DBC2A932E4871D1009D22B5 /* Debug */,
+				7DBC2A942E4871D1009D22B5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7DBC2A952E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBoxTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DBC2A962E4871D1009D22B5 /* Debug */,
+				7DBC2A972E4871D1009D22B5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7DBC2A982E4871D1009D22B5 /* Build configuration list for PBXNativeTarget "TaxBoxUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DBC2A992E4871D1009D22B5 /* Debug */,
+				7DBC2A9A2E4871D1009D22B5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7DBC2A682E4871CF009D22B5 /* Project object */;
+}
