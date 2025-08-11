@@ -9,6 +9,12 @@ TaxBox is a native macOS application designed to transform the chaos of tax seas
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-Native-green.svg?style=flat-square)
 ![Privacy](https://img.shields.io/badge/Privacy-Local%20First-red.svg?style=flat-square)
 
+## 📸 Screenshot
+
+![TaxBox Main Interface](.github/images/taxbox-main-interface.png)
+
+*Clean, native macOS interface with document preview, metadata management, and smart filtering*
+
 ## ✨ Features
 
 ### 🎯 **Dead Simple Organization**
