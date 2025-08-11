@@ -67,14 +67,19 @@ final class AppModel: ObservableObject {
         if let entries = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
             for yURL in entries where (try? yURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
                 if let y = Int(yURL.lastPathComponent) {
-                    ys.insert(y)
+                    var hasDocuments = false
                     if let files = try? fm.contentsOfDirectory(at: yURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
                         for f in files where f.pathExtension.lowercased() != "json" {
                             let sc = f.appendingPathExtension("meta.json")
                             if let meta = loadSidecar(sc, fallbackFor: f, year: y) {
                                 found.append(DocumentItem(url: f, sidecarURL: sc, meta: meta))
+                                hasDocuments = true
                             }
                         }
+                    }
+                    // Only add year if we found actual documents
+                    if hasDocuments {
+                        ys.insert(y)
                     }
                 }
             }
