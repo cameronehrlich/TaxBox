@@ -36,26 +36,106 @@ struct ContentView: View {
 struct Sidebar: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
-        List(selection: $model.selectedYear) {
+        List {
             Section("Years") {
-                ForEach(model.years, id: \.self) { y in Text(String(y)) }
+                FilterRow(title: "All Years", isSelected: model.selectedYear == nil) {
+                    model.selectedYear = nil
+                }
+                ForEach(model.years, id: \.self) { year in
+                    FilterRow(title: String(year), isSelected: model.selectedYear == year) {
+                        model.selectedYear = year
+                    }
+                }
             }
             Section("Status") {
-                ButtonLabelFilter(title: "All") { model.statusFilter = nil }
-                ForEach(DocStatus.allCases) { s in ButtonLabelFilter(title: s.rawValue) { model.statusFilter = s } }
+                FilterRow(title: "All Statuses", isSelected: model.statusFilter == nil) {
+                    model.statusFilter = nil
+                }
+                ForEach(DocStatus.allCases) { status in 
+                    FilterRow(title: status.rawValue, isSelected: model.statusFilter == status) {
+                        model.statusFilter = status
+                    }
+                }
             }
         }
         .listStyle(.sidebar)
     }
 }
 
-struct ButtonLabelFilter: View { let title: String; let action: () -> Void; var body: some View { Button(action: action) { Text(title) }.buttonStyle(.plain) } }
+struct FilterRow: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(isSelected ? .white : .primary)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.white)
+                    .font(.system(size: 12))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isSelected ? Color.accentColor : Color.clear)
+        .cornerRadius(6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            action()
+        }
+    }
+}
 
 struct Toolbar: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         HStack {
             TextField("Search", text: $model.query)
+            
+            if model.selectedYear != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Text(String(model.selectedYear!))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button(action: { model.selectedYear = nil }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(10)
+            }
+            
+            if model.statusFilter != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Text(model.statusFilter!.rawValue)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button(action: { model.statusFilter = nil }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(10)
+            }
+            
             Spacer()
             Button("Open Folder") { model.openRootInFinder() }
         }
@@ -128,7 +208,13 @@ struct Footer: View {
     }
 }
 
-struct AmountField: View { @Binding var value: Double; var body: some View { TextField("0", value: $value, format: .number).multilineTextAlignment(.trailing) } }
+struct AmountField: View { 
+    @Binding var value: Double
+    var body: some View { 
+        TextField("$0.00", value: $value, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))
+            .multilineTextAlignment(.trailing) 
+    } 
+}
 
 struct ThumbnailView: View {
     let url: URL

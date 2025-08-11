@@ -30,9 +30,25 @@ final class AppModel: ObservableObject {
     @Published var statusFilter: DocStatus? = nil
     @Published var query: String = ""
     @Published var copyOnImport: Bool = true
+    @Published var root: URL {
+        didSet {
+            UserDefaults.standard.set(root.path, forKey: "TaxBoxRootPath")
+            reload()
+        }
+    }
 
     let fm = FileManager.default
-    var root: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Tax Box")
+    
+    init() {
+        // Check for saved root path
+        if let savedPath = UserDefaults.standard.string(forKey: "TaxBoxRootPath") {
+            self.root = URL(fileURLWithPath: savedPath)
+        } else {
+            // Default to ~/Documents/TaxBox
+            self.root = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/TaxBox")
+            UserDefaults.standard.set(self.root.path, forKey: "TaxBoxRootPath")
+        }
+    }
 
     func bootstrap() {
         try? fm.createDirectory(at: root, withIntermediateDirectories: true)
