@@ -134,3 +134,61 @@ When extending this app:
 ---
 
 *This document serves as the north star for TaxBox development. Implementation details will change, but these core principles and goals should guide all decisions.*
+
+## Implementation Notes & Lessons Learned
+
+### Current Project Structure
+- **Location**: `/Users/cameronehrlich/TaxBox/ios/TaxBox/`
+- **Platform**: macOS 13+ with SwiftUI
+- **Xcode Project**: Full Xcode project setup with entitlements for file access
+
+### Key Implementation Details
+
+#### Fixed Issues
+1. **Hashable Conformance**: `Sidecar` struct needs `Hashable` for SwiftUI table selection
+2. **Amount Field Editing Crash**: Don't call `reload()` during field editing - update items in place
+3. **Memory Leak Prevention**: Thumbnail generation should track loading state to prevent repeated calls
+4. **Modal Dismissal**: Sheet dismissal requires explicit `showSheet = false` in completion handler
+5. **Finder Tags**: Disabled due to sandboxing limitations - requires additional entitlements
+
+#### UI/UX Improvements Made
+- **Status Filter Visibility**: 
+  - Sidebar shows selected filter with accent color background and checkmark
+  - Toolbar shows active filter badge with quick clear button
+  - Section renamed to "Status Filter" for clarity
+- **Right-Click Delete**: Context menu for deleting selected files and revealing in Finder
+- **Year Formatting**: Fixed comma in year stepper (use `String(year)` not default formatting)
+
+#### Architecture Decisions
+- **Update Pattern**: Update individual items in array rather than full reload to preserve UI state
+- **File Operations**: Default to copy (safer) with toggle for move operations
+- **Delete Operations**: Remove both file and `.meta.json` sidecar together
+
+### Future Design Considerations
+
+#### "Indie Developer Vibe" Ideas (Not Yet Implemented)
+- Warmer color palette while maintaining system integration
+- Friendly empty states with helpful illustrations
+- Subtle animations on drag/drop and state changes
+- More conversational microcopy in prompts and messages
+- Rounded corners and softer shadows throughout
+- Optional fun statistics view (e.g., "You've organized 47 documents this year! 🎉")
+
+#### Technical Debt & Improvements
+- Consider implementing proper diffing for array updates
+- Add error recovery UI for file operation failures
+- Implement undo/redo for destructive operations
+- Cache thumbnails more efficiently
+- Add keyboard shortcuts for common operations
+
+### Git Repository Setup
+- Repository initialized with comprehensive `.gitignore` for macOS/Xcode
+- All project files committed with descriptive initial commit
+- Ready for version control and collaboration
+
+### Testing Reminders
+- Test with hundreds of files for performance
+- Verify behavior when `~/Documents/Tax Box/` doesn't exist
+- Test drag-and-drop with various file types
+- Ensure proper cleanup of orphaned `.meta.json` files
+- Verify amount field handles edge cases (negative numbers, very large values)
