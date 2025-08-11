@@ -105,6 +105,28 @@ final class AppModel: ObservableObject {
         for src in urls { importURL(src, with: draft) }
         reload()
     }
+    
+    func createPlaceholder(with draft: DraftMeta) {
+        let yearURL = root.appending(path: String(draft.year))
+        try? fm.createDirectory(at: yearURL, withIntermediateDirectories: true)
+        
+        // Create a placeholder filename based on the name
+        let sanitizedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let filename = sanitizedName.isEmpty ? "Document" : sanitizedName
+        let placeholderFile = uniqueDestination(in: yearURL, original: "\(filename).placeholder")
+        
+        // Create an empty placeholder file
+        try? Data().write(to: placeholderFile)
+        
+        // Create the metadata
+        let sidecarURL = placeholderFile.appendingPathExtension("meta.json")
+        let meta = Sidecar(name: draft.name, amount: draft.amount, notes: draft.notes, status: draft.status, year: draft.year, createdAt: .now, sourcePath: nil)
+        saveSidecar(meta, to: sidecarURL)
+        
+        reload()
+    }
 
     private func importURL(_ src: URL, with draft: DraftMeta) {
         let yearURL = root.appending(path: String(draft.year))

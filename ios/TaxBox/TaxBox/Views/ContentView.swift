@@ -6,31 +6,47 @@ struct ContentView: View {
     @State private var showSheet = false
     @State private var dropped: [URL] = []
     @State private var draft = DraftMeta.from(urls: [])
+    @State private var isManualAdd = false
 
     var body: some View {
         NavigationSplitView {
             Sidebar()
         } detail: {
             VStack(spacing: 0) {
-                Toolbar()
+                Toolbar(onAddPlaceholder: startManualAdd)
                 TableView()
                 Footer()
             }
             .dropDestination(for: URL.self) { items, _ in
                 dropped = items
                 draft = DraftMeta.from(urls: items)
-                draft.status = model.defaultStatus()
+                draft.status = "Done" // Files you already have are typically done
+                isManualAdd = false
                 showSheet = true
                 return true
             }
             .sheet(isPresented: $showSheet) {
-                ImportSheet(urls: dropped, draft: $draft) { confirmed in
-                    if confirmed { model.importURLs(dropped, with: draft) }
+                ImportSheet(urls: dropped, draft: $draft, isManualAdd: isManualAdd) { confirmed in
+                    if confirmed { 
+                        if isManualAdd {
+                            model.createPlaceholder(with: draft)
+                        } else {
+                            model.importURLs(dropped, with: draft) 
+                        }
+                    }
                     showSheet = false
                 }
-                .frame(width: 460)
+                .frame(width: isManualAdd ? 400 : 600, height: 400)
             }
         }
+    }
+    
+    func startManualAdd() {
+        dropped = []
+        draft = DraftMeta.from(urls: [])
+        draft.status = "Todo" // Placeholders default to todo
+        isManualAdd = true
+        showSheet = true
     }
 }
 
@@ -93,6 +109,8 @@ struct FilterRow: View {
 
 struct Toolbar: View {
     @EnvironmentObject var model: AppModel
+    let onAddPlaceholder: () -> Void
+    
     var body: some View {
         HStack {
             TextField("Search", text: $model.query)
@@ -138,6 +156,13 @@ struct Toolbar: View {
             }
             
             Spacer()
+            
+            Button(action: onAddPlaceholder) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16))
+            }
+            .help("Add document placeholder")
+            
             Button("Open Folder") { model.openRootInFinder() }
         }
         .padding(8)
