@@ -2,13 +2,13 @@ import Foundation
 import UniformTypeIdentifiers
 import AppKit
 
-enum DocStatus: String, CaseIterable, Identifiable, Codable { case done = "Done", waiting = "Waiting", needsDoc = "Needs Doc", ready = "Ready"; var id: String { rawValue } }
+// Status is now a simple String - no more enum limitations
 
 struct Sidecar: Codable, Equatable, Hashable {
     var name: String
     var amount: Double?
     var notes: String
-    var status: DocStatus
+    var status: String
     var year: Int
     var createdAt: Date
     var sourcePath: String?
@@ -27,7 +27,8 @@ final class AppModel: ObservableObject {
     @Published var items: [DocumentItem] = []
     @Published var years: [Int] = []
     @Published var selectedYear: Int? = Calendar.current.component(.year, from: .now)
-    @Published var statusFilter: DocStatus? = nil
+    @Published var statusFilter: String? = nil
+    @Published var availableStatuses: [String] = []
     @Published var query: String = ""
     @Published var copyOnImport: Bool = true
     @Published var root: URL {
@@ -48,6 +49,9 @@ final class AppModel: ObservableObject {
             self.root = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/TaxBox")
             UserDefaults.standard.set(self.root.path, forKey: "TaxBoxRootPath")
         }
+        
+        // Load saved statuses or use defaults
+        loadStatuses()
     }
 
     func bootstrap() {
@@ -83,9 +87,13 @@ final class AppModel: ObservableObject {
     }
 
     func loadSidecar(_ url: URL, fallbackFor file: URL, year: Int) -> Sidecar? {
-        if let data = try? Data(contentsOf: url), let sc = try? JSONDecoder.iso.decode(Sidecar.self, from: data) { return sc }
+        if let data = try? Data(contentsOf: url), let sc = try? JSONDecoder.iso.decode(Sidecar.self, from: data) { 
+            // Discover and add this status if it's new
+            discoverStatus(sc.status)
+            return sc 
+        }
         let base = file.deletingPathExtension().lastPathComponent
-        return Sidecar(name: base, amount: nil, notes: "", status: .done, year: year, createdAt: .now, sourcePath: nil)
+        return Sidecar(name: base, amount: nil, notes: "", status: defaultStatus(), year: year, createdAt: .now, sourcePath: nil)
     }
 
     func saveSidecar(_ meta: Sidecar, to url: URL) {
@@ -163,12 +171,69 @@ final class AppModel: ObservableObject {
         }
         reload()
     }
+    
+    // MARK: - Status Management
+    
+    private func loadStatuses() {
+        if let saved = UserDefaults.standard.array(forKey: "TaxBoxStatuses") as? [String] {
+            availableStatuses = saved
+        } else {
+            // Default statuses for new users
+            availableStatuses = ["Todo", "In Progress", "Done"]
+            saveStatuses()
+        }
+    }
+    
+    private func saveStatuses() {
+        UserDefaults.standard.set(availableStatuses, forKey: "TaxBoxStatuses")
+    }
+    
+    func discoverStatus(_ status: String) {
+        if !availableStatuses.contains(status) {
+            availableStatuses.append(status)
+            saveStatuses()
+        }
+    }
+    
+    func defaultStatus() -> String {
+        return availableStatuses.first ?? "Todo"
+    }
+    
+    func addStatus(_ status: String) {
+        guard !status.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let trimmedStatus = status.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !availableStatuses.contains(trimmedStatus) {
+            availableStatuses.append(trimmedStatus)
+            saveStatuses()
+        }
+    }
+    
+    func removeStatus(_ status: String) {
+        guard availableStatuses.count > 1 else { return } // Always keep at least one status
+        if let index = availableStatuses.firstIndex(of: status) {
+            availableStatuses.remove(at: index)
+            saveStatuses()
+            
+            // Update any documents using this status to the default
+            let defaultStat = defaultStatus()
+            for item in items where item.meta.status == status {
+                var updatedItem = item
+                updatedItem.meta.status = defaultStat
+                update(updatedItem)
+            }
+        }
+    }
+    
+    func reorderStatuses(_ statuses: [String]) {
+        availableStatuses = statuses
+        saveStatuses()
+    }
 }
 
 extension JSONEncoder { static let iso: JSONEncoder = { let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]; e.dateEncodingStrategy = .iso8601; return e }() }
 extension JSONDecoder { static let iso: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }() }
 
-func setFinderTags(for sidecarURL: URL, year: Int, status: DocStatus) {
+func setFinderTags(for sidecarURL: URL, year: Int, status: String) {
     // Finder tags functionality temporarily disabled
     // This would require additional entitlements and proper URL resource handling
 }

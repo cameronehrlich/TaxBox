@@ -52,10 +52,24 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
             
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Status Options")
+                    .font(.headline)
+                
+                StatusManagementView()
+                    .environmentObject(model)
+                
+                Text("Customize the status options available for your documents.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
             Spacer()
         }
         .padding(30)
-        .frame(width: 500, height: 300)
+        .frame(width: 500, height: 450)
         .fileImporter(
             isPresented: $showFolderPicker,
             allowedContentTypes: [.folder],
@@ -69,6 +83,49 @@ struct SettingsView: View {
                 }
             case .failure(let error):
                 print("Folder selection failed: \(error)")
+            }
+        }
+    }
+}
+
+struct StatusManagementView: View {
+    @EnvironmentObject var model: AppModel
+    @State private var newStatusName = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(model.availableStatuses, id: \.self) { status in
+                HStack {
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 8))
+                    
+                    Text(status)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    if model.availableStatuses.count > 1 {
+                        Button(action: { model.removeStatus(status) }) {
+                            Image(systemName: "minus.circle")
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.gray.opacity(0.05))
+                .cornerRadius(6)
+            }
+            
+            HStack {
+                TextField("New status name", text: $newStatusName)
+                    .textFieldStyle(.roundedBorder)
+                
+                Button("Add") {
+                    model.addStatus(newStatusName)
+                    newStatusName = ""
+                }
+                .disabled(newStatusName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }

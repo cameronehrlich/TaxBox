@@ -19,6 +19,7 @@ struct ContentView: View {
             .dropDestination(for: URL.self) { items, _ in
                 dropped = items
                 draft = DraftMeta.from(urls: items)
+                draft.status = model.defaultStatus()
                 showSheet = true
                 return true
             }
@@ -51,8 +52,8 @@ struct Sidebar: View {
                 FilterRow(title: "All Statuses", isSelected: model.statusFilter == nil) {
                     model.statusFilter = nil
                 }
-                ForEach(DocStatus.allCases) { status in 
-                    FilterRow(title: status.rawValue, isSelected: model.statusFilter == status) {
+                ForEach(model.availableStatuses, id: \.self) { status in 
+                    FilterRow(title: status, isSelected: model.statusFilter == status) {
                         model.statusFilter = status
                     }
                 }
@@ -121,7 +122,7 @@ struct Toolbar: View {
                     Image(systemName: "line.3.horizontal.decrease.circle.fill")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
-                    Text(model.statusFilter!.rawValue)
+                    Text(model.statusFilter!)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Button(action: { model.statusFilter = nil }) {
@@ -164,7 +165,9 @@ struct TableView: View {
 
             TableColumn("Status") { item in
                 Picker("", selection: Binding(get: { item.meta.status }, set: { v in var m = item; m.meta.status = v; model.update(m) })) {
-                    ForEach(DocStatus.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(model.availableStatuses, id: \.self) { status in
+                        Text(status).tag(status)
+                    }
                 }.labelsHidden()
             }.width(120)
 
