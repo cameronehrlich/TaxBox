@@ -34,6 +34,7 @@ final class AppModel: ObservableObject {
     @Published var availableStatuses: [String] = []
     @Published var query: String = ""
     @Published var copyOnImport: Bool = true
+    @Published var showingCSVImport = false
     @Published var root: URL {
         didSet {
             // Stop accessing old URL if it was security-scoped
@@ -227,6 +228,10 @@ final class AppModel: ObservableObject {
     }
 
     func openRootInFinder() { NSWorkspace.shared.activateFileViewerSelecting([root]) }
+    
+    func showCSVImport() {
+        showingCSVImport = true
+    }
 
     @MainActor
     func reload() {
@@ -332,30 +337,53 @@ final class AppModel: ObservableObject {
                 return
             }
             
+            await createPlaceholderInternal(with: draft)
+            await performReload()
+        }
+    }
+    
+    @MainActor
+    func createBulkPlaceholders(_ drafts: [DraftMeta]) {
+        Task {
+            // Single access check for the entire bulk operation
+            if await !hasAccessToRoot() {
+                print("No access to root folder, requesting permission")
+                selectNewRootFolder()
+                return
+            }
+            
+            // Create all placeholders without individual access checks
             await Task.detached { [weak self] in
                 guard let self = self else { return }
                 
-                let yearURL = self.root.appending(path: String(draft.year))
-                try? self.fm.createDirectory(at: yearURL, withIntermediateDirectories: true)
-                
-                // Create a placeholder filename based on the name
-                let sanitizedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .replacingOccurrences(of: "/", with: "-")
-                    .replacingOccurrences(of: ":", with: "-")
-                let filename = sanitizedName.isEmpty ? "Document" : sanitizedName
-                let placeholderFile = self.uniqueDestination(in: yearURL, original: "\(filename).placeholder")
-                
-                // Create an empty placeholder file
-                try? Data().write(to: placeholderFile)
-                
-                // Create the metadata
-                let sidecarURL = placeholderFile.appendingPathExtension("meta.json")
-                let meta = Sidecar(name: draft.name, amount: draft.amount, notes: draft.notes, status: draft.status, year: draft.year, createdAt: .now, sourcePath: nil)
-                self.saveSidecar(meta, to: sidecarURL)
+                for draft in drafts {
+                    await self.createPlaceholderInternal(with: draft)
+                }
             }.value
             
+            // Single reload at the end
             await performReload()
         }
+    }
+    
+    private func createPlaceholderInternal(with draft: DraftMeta) async {
+        let yearURL = root.appending(path: String(draft.year))
+        try? fm.createDirectory(at: yearURL, withIntermediateDirectories: true)
+        
+        // Create a placeholder filename based on the name
+        let sanitizedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let filename = sanitizedName.isEmpty ? "Document" : sanitizedName
+        let placeholderFile = uniqueDestination(in: yearURL, original: "\(filename).placeholder")
+        
+        // Create an empty placeholder file
+        try? Data().write(to: placeholderFile)
+        
+        // Create the metadata
+        let sidecarURL = placeholderFile.appendingPathExtension("meta.json")
+        let meta = Sidecar(name: draft.name, amount: draft.amount, notes: draft.notes, status: draft.status, year: draft.year, createdAt: .now, sourcePath: nil)
+        saveSidecar(meta, to: sidecarURL)
     }
 
     private func importURL(_ src: URL, with draft: DraftMeta) async {

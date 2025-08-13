@@ -38,6 +38,9 @@ struct ContentView: View {
                 }
                 .frame(width: isManualAdd ? 400 : 600, height: 400)
             }
+            .sheet(isPresented: $model.showingCSVImport) {
+                ImportCSVSheet(isPresented: $model.showingCSVImport)
+            }
         }
     }
     
@@ -206,27 +209,40 @@ struct TableView: View {
                         ThumbnailView(url: item.url, isOffloaded: item.isDownloading)
                     }
                     
-                    Button(action: {
-                        guard !item.isDownloading else { return }
-                        
-                        Task {
-                            let isAvailable = await model.ensureFileDownloaded(item)
-                            if isAvailable {
-                                NSWorkspace.shared.open(item.url)
-                            }
-                        }
-                    }) {
+                    if item.filename.hasSuffix(".placeholder") {
+                        // Show placeholder state instead of clickable link
                         HStack(spacing: 4) {
-                            Text(item.filename)
-                            if item.isDownloading {
-                                Image(systemName: "icloud.and.arrow.down")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                            Image(systemName: "doc.badge.plus")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("No file attached")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                    } else {
+                        Button(action: {
+                            guard !item.isDownloading else { return }
+                            
+                            Task {
+                                let isAvailable = await model.ensureFileDownloaded(item)
+                                if isAvailable {
+                                    NSWorkspace.shared.open(item.url)
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Text(item.filename)
+                                if item.isDownloading {
+                                    Image(systemName: "icloud.and.arrow.down")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
+                        .buttonStyle(.link)
+                        .disabled(item.isDownloading)
                     }
-                    .buttonStyle(.link)
-                    .disabled(item.isDownloading)
                 }
             }
         }
@@ -287,6 +303,10 @@ struct ThumbnailView: View {
     @State private var hasLoaded = false
     @EnvironmentObject var model: AppModel
     
+    var isPlaceholder: Bool {
+        url.lastPathComponent.hasSuffix(".placeholder")
+    }
+    
     var body: some View {
         Group { 
             if let image { 
@@ -295,13 +315,17 @@ struct ThumbnailView: View {
                 Image(systemName: "icloud.and.arrow.down")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            } else if isPlaceholder {
+                Image(systemName: "doc.badge.plus")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } else { 
                 Rectangle().opacity(0.08) 
             } 
         }
         .frame(width: 28, height: 36)
         .onAppear { 
-            if !hasLoaded && !isOffloaded {
+            if !hasLoaded && !isOffloaded && !isPlaceholder {
                 genThumb()
                 hasLoaded = true
             }
