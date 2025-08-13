@@ -159,9 +159,10 @@ extension DocumentProcessor {
     
     /// Saves a CGImage as high-quality JPEG to temporary directory accessible for import
     func saveAsJPEG(image: CGImage, quality: CGFloat = 0.9) -> URL? {
-        // Use temporary directory with better access characteristics
+        // Use NSTemporaryDirectory() for better sandboxing compatibility
         let fileManager = FileManager.default
-        let tempDir = fileManager.temporaryDirectory.appendingPathComponent("TaxBox-Camera", isDirectory: true)
+        let tempPath = NSTemporaryDirectory() + "TaxBox-Camera/"
+        let tempDir = URL(fileURLWithPath: tempPath)
         
         // Create directory if it doesn't exist with proper permissions
         do {
@@ -219,7 +220,8 @@ extension DocumentProcessor {
     /// Clean up temporary camera files
     func cleanupTempFiles() {
         let fileManager = FileManager.default
-        let tempDir = fileManager.temporaryDirectory.appendingPathComponent("TaxBox-Camera", isDirectory: true)
+        let tempPath = NSTemporaryDirectory() + "TaxBox-Camera/"
+        let tempDir = URL(fileURLWithPath: tempPath)
         
         do {
             if fileManager.fileExists(atPath: tempDir.path) {

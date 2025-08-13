@@ -242,11 +242,13 @@ class SimpleCameraManager: NSObject, ObservableObject {
             if maxDimensions.width > 0 && maxDimensions.height > 0 {
                 settings.maxPhotoDimensions = maxDimensions
             } else {
-                // Fallback: try to set a reasonable high resolution
-                print("Max photo dimensions is 0x0, using fallback high resolution")
-                settings.isHighResolutionPhotoEnabled = true
+                // Fallback: Use default high resolution dimensions
+                print("Max photo dimensions is 0x0, using fallback dimensions")
+                // Set a reasonable high resolution fallback (4K)
+                settings.maxPhotoDimensions = CMVideoDimensions(width: 3840, height: 2160)
             }
         } else {
+            // For macOS < 13.0, use the legacy property
             settings.isHighResolutionPhotoEnabled = true
         }
         
@@ -275,8 +277,6 @@ class SimpleCameraManager: NSObject, ObservableObject {
             }
         }
         
-        // Also clean up entire temp directory
-        documentProcessor.cleanupTempFiles()
         
         capturedImages.removeAll()
         processingStatus = nil
@@ -426,41 +426,9 @@ extension SimpleCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     }
     
     private nonisolated func averageRectangle(from rectangles: [VNRectangleObservation]) -> VNRectangleObservation {
-        let count = Float(rectangles.count)
-        
-        let avgTopLeft = CGPoint(
-            x: rectangles.map { $0.topLeft.x }.reduce(0, +) / CGFloat(count),
-            y: rectangles.map { $0.topLeft.y }.reduce(0, +) / CGFloat(count)
-        )
-        
-        let avgTopRight = CGPoint(
-            x: rectangles.map { $0.topRight.x }.reduce(0, +) / CGFloat(count),
-            y: rectangles.map { $0.topRight.y }.reduce(0, +) / CGFloat(count)
-        )
-        
-        let avgBottomLeft = CGPoint(
-            x: rectangles.map { $0.bottomLeft.x }.reduce(0, +) / CGFloat(count),
-            y: rectangles.map { $0.bottomLeft.y }.reduce(0, +) / CGFloat(count)
-        )
-        
-        let avgBottomRight = CGPoint(
-            x: rectangles.map { $0.bottomRight.x }.reduce(0, +) / CGFloat(count),
-            y: rectangles.map { $0.bottomRight.y }.reduce(0, +) / CGFloat(count)
-        )
-        
-        let _ = rectangles.map { $0.confidence }.reduce(0, +) / count
-        
-        // Use the first rectangle as a template and average the corners
-        let first = rectangles.first!
-        
-        // Use the legacy initializer - suppressing deprecation warning
-        return VNRectangleObservation(
-            requestRevision: first.requestRevision,
-            topLeft: avgTopLeft,
-            bottomLeft: avgBottomLeft,
-            bottomRight: avgBottomRight,
-            topRight: avgTopRight
-        )
+        // For stability, use the most recent rectangle with highest confidence
+        // This avoids the deprecated initializer while still providing stable detection
+        return rectangles.max(by: { $0.confidence < $1.confidence }) ?? rectangles.first!
     }
     
     private nonisolated func rectanglesAreSimilar(_ rect1: VNRectangleObservation, _ rect2: VNRectangleObservation) -> Bool {
@@ -582,6 +550,69 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                     }
                 }
             }
+        }
+    }
+    
+    /// Save processed image to accessible temporary location
+    static func saveImageToTempFile(image: CGImage) -> URL? {
+        // Use NSTemporaryDirectory() for better sandboxing compatibility
+        let tempPath = NSTemporaryDirectory() + "TaxBox-Camera/"
+        let tempDir = URL(fileURLWithPath: tempPath)
+        
+        // Create directory if needed
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            print("Failed to create temp directory: \(error)")
+            return nil
+        }
+        
+        let filename = "scanned_document_\(UUID().uuidString).jpg"
+        let url = tempDir.appendingPathComponent(filename)
+        
+        print("Saving image to: \(url.path)")
+        
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else {
+            print("Failed to create image destination")
+            return nil
+        }
+        
+        let properties: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: 0.9
+        ]
+        
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        
+        guard CGImageDestinationFinalize(destination) else {
+            print("Failed to finalize image destination")
+            return nil
+        }
+        
+        // Verify file was created and is accessible
+        if FileManager.default.fileExists(atPath: url.path) && FileManager.default.isReadableFile(atPath: url.path) {
+            print("File successfully created and verified at: \(url.path)")
+            return url
+        } else {
+            print("File was not created or is not accessible: \(url.path)")
+            return nil
+        }
+    }
+    
+    /// Clean up temporary camera files
+    private func cleanupTempFiles() {
+        let tempPath = NSTemporaryDirectory() + "TaxBox-Camera/"
+        let tempDir = URL(fileURLWithPath: tempPath)
+        
+        do {
+            if FileManager.default.fileExists(atPath: tempDir.path) {
+                let contents = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+                for url in contents {
+                    try FileManager.default.removeItem(at: url)
+                }
+                print("Cleaned up \(contents.count) temporary camera files")
+            }
+        } catch {
+            print("Failed to cleanup temp files: \(error)")
         }
     }
 }
