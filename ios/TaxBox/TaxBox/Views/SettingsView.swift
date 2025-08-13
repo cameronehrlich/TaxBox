@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
-    @State private var showFolderPicker = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -28,7 +27,7 @@ struct SettingsView: View {
                         .cornerRadius(6)
                     
                     Button("Choose...") {
-                        showFolderPicker = true
+                        model.selectNewRootFolder()
                     }
                 }
                 
@@ -70,21 +69,6 @@ struct SettingsView: View {
         }
         .padding(30)
         .frame(width: 500, height: 450)
-        .fileImporter(
-            isPresented: $showFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                if let url = urls.first {
-                    model.root = url
-                    model.bootstrap()
-                }
-            case .failure(let error):
-                print("Folder selection failed: \(error)")
-            }
-        }
     }
 }
 

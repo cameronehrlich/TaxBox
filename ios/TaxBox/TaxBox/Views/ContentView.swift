@@ -198,9 +198,35 @@ struct TableView: View {
 
             TableColumn("File") { item in
                 HStack {
-                    ThumbnailView(url: item.url)
-                    Button(item.filename) { NSWorkspace.shared.open(item.url) }
-                        .buttonStyle(.link)
+                    if item.isDownloading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 28, height: 36)
+                    } else {
+                        ThumbnailView(url: item.url, isOffloaded: item.isDownloading)
+                    }
+                    
+                    Button(action: {
+                        guard !item.isDownloading else { return }
+                        
+                        Task {
+                            let isAvailable = await model.ensureFileDownloaded(item)
+                            if isAvailable {
+                                NSWorkspace.shared.open(item.url)
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Text(item.filename)
+                            if item.isDownloading {
+                                Image(systemName: "icloud.and.arrow.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.link)
+                    .disabled(item.isDownloading)
                 }
             }
         }
@@ -216,6 +242,16 @@ struct TableView: View {
                     let itemsToOpen = model.filteredItems().filter { selection.contains($0.id) }
                     for item in itemsToOpen {
                         NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                    }
+                }
+                
+                if model.filteredItems().filter({ selection.contains($0.id) }).contains(where: { $0.isDownloading }) {
+                    Divider()
+                    Button("Download from iCloud") {
+                        let itemsToDownload = model.filteredItems().filter { selection.contains($0.id) && $0.isDownloading }
+                        for item in itemsToDownload {
+                            model.triggerDownload(for: item.url)
+                        }
                     }
                 }
             }
@@ -246,20 +282,26 @@ struct AmountField: View {
 
 struct ThumbnailView: View {
     let url: URL
+    var isOffloaded: Bool = false
     @State private var image: NSImage? = nil
     @State private var hasLoaded = false
+    @EnvironmentObject var model: AppModel
     
     var body: some View {
         Group { 
             if let image { 
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fit) 
+            } else if isOffloaded {
+                Image(systemName: "icloud.and.arrow.down")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } else { 
                 Rectangle().opacity(0.08) 
             } 
         }
         .frame(width: 28, height: 36)
         .onAppear { 
-            if !hasLoaded {
+            if !hasLoaded && !isOffloaded {
                 genThumb()
                 hasLoaded = true
             }
@@ -267,12 +309,30 @@ struct ThumbnailView: View {
     }
     
     func genThumb() {
-        let req = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 72, height: 72), scale: 2, representationTypes: .thumbnail)
-        QLThumbnailGenerator.shared.generateBestRepresentation(for: req) { rep, _ in
-            DispatchQueue.main.async {
-                if let cg = rep?.cgImage { 
-                    self.image = NSImage(cgImage: cg, size: .zero) 
+        Task {
+            // Check if file is available locally before generating thumbnail
+            do {
+                let resourceValues = try url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+                if let status = resourceValues.ubiquitousItemDownloadingStatus {
+                    if status == .notDownloaded {
+                        // Don't generate thumbnail for offloaded files
+                        return
+                    }
+                    // .downloaded, .downloading, and .current are all fine for thumbnail generation
                 }
+            } catch {
+                // Proceed with thumbnail generation if we can't check status
+            }
+            
+            let req = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 72, height: 72), scale: 2, representationTypes: .thumbnail)
+            
+            do {
+                let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: req)
+                await MainActor.run {
+                    self.image = NSImage(cgImage: representation.cgImage, size: .zero)
+                }
+            } catch {
+                // Thumbnail generation failed, leave as placeholder
             }
         }
     }
