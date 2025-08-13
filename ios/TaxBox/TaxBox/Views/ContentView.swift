@@ -43,7 +43,36 @@ struct ContentView: View {
                 ImportCSVSheet(isPresented: $model.showingCSVImport)
             }
             .sheet(isPresented: $showCameraSheet) {
-                SimpleCameraView()
+                SimpleCameraView { capturedURLs in
+                    // Handle captured documents
+                    if !capturedURLs.isEmpty {
+                        // Smoothly transition from camera to import sheet
+                        dropped = capturedURLs
+                        draft = DraftMeta.from(urls: capturedURLs)
+                        
+                        // Intelligent naming based on count
+                        let timestamp = DateFormatter.shortDateTime.string(from: Date())
+                        draft.name = capturedURLs.count == 1 
+                            ? "Scanned Document \(timestamp)"
+                            : "\(capturedURLs.count) Scanned Documents \(timestamp)"
+                        
+                        // Default status for camera documents
+                        draft.status = "Ready" // Camera scanned documents are ready for processing
+                        isManualAdd = false
+                        
+                        // Close camera sheet and open import sheet smoothly
+                        showCameraSheet = false
+                        
+                        // Small delay to allow camera sheet to close before opening import sheet
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(200))
+                            await MainActor.run {
+                                showSheet = true
+                            }
+                        }
+                    }
+                }
+                .interactiveDismissDisabled() // Prevent accidental dismissal during capture
             }
         }
     }
@@ -57,6 +86,9 @@ struct ContentView: View {
     }
     
     func startCameraScan() {
+        // Ensure we're in a clean state before starting camera
+        dropped = []
+        draft = DraftMeta.from(urls: [])
         showCameraSheet = true
     }
 }

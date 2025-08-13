@@ -132,7 +132,38 @@ struct DocumentPreviewView: View {
     }
     
     private func generatePreview() {
-        // Use larger size but similar approach to working ThumbnailView
+        // First check if file exists and is accessible
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: url.path) else {
+            print("Preview generation failed: file does not exist at \(url.path)")
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.image = nil
+            }
+            return
+        }
+        
+        guard fileManager.isReadableFile(atPath: url.path) else {
+            print("Preview generation failed: file is not readable at \(url.path)")
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.image = nil
+            }
+            return
+        }
+        
+        // For camera-captured documents, try direct image loading first
+        if url.path.contains("TaxBox-Camera") && url.pathExtension.lowercased() == "jpg" {
+            if let nsImage = NSImage(contentsOf: url) {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.image = nsImage
+                }
+                return
+            }
+        }
+        
+        // Fall back to QuickLook thumbnail generation
         let request = QLThumbnailGenerator.Request(
             fileAt: url, 
             size: CGSize(width: 320, height: 320), 
@@ -142,15 +173,19 @@ struct DocumentPreviewView: View {
         
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, error in
             DispatchQueue.main.async {
-                isLoading = false
+                self.isLoading = false
                 if let error = error {
-                    print("Preview generation error for \(url.lastPathComponent): \(error)")
-                }
-                if let cg = rep?.cgImage { 
-                    image = NSImage(cgImage: cg, size: .zero) 
+                    print("Preview generation error for \(self.url.lastPathComponent): \(error)")
+                    // For camera documents, try one more direct load
+                    if self.url.path.contains("TaxBox-Camera") {
+                        self.image = NSImage(contentsOf: self.url)
+                    }
+                } else if let cg = rep?.cgImage { 
+                    self.image = NSImage(cgImage: cg, size: .zero) 
                 } else {
-                    print("No cgImage for \(url.lastPathComponent)")
-                    image = nil
+                    print("No cgImage for \(self.url.lastPathComponent)")
+                    // Try direct load as last resort
+                    self.image = NSImage(contentsOf: self.url)
                 }
             }
         }
