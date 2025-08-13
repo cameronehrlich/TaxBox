@@ -4,6 +4,7 @@ import QuickLookThumbnailing
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
     @State private var showSheet = false
+    @State private var showCameraSheet = false
     @State private var dropped: [URL] = []
     @State private var draft = DraftMeta.from(urls: [])
     @State private var isManualAdd = false
@@ -13,7 +14,7 @@ struct ContentView: View {
             Sidebar()
         } detail: {
             VStack(spacing: 0) {
-                Toolbar(onAddPlaceholder: startManualAdd)
+                Toolbar(onAddPlaceholder: startManualAdd, onScanDocument: startCameraScan)
                 TableView()
                 Footer()
             }
@@ -41,6 +42,9 @@ struct ContentView: View {
             .sheet(isPresented: $model.showingCSVImport) {
                 ImportCSVSheet(isPresented: $model.showingCSVImport)
             }
+            .sheet(isPresented: $showCameraSheet) {
+                SimpleCameraView()
+            }
         }
     }
     
@@ -50,6 +54,10 @@ struct ContentView: View {
         draft.status = "Todo" // Placeholders default to todo
         isManualAdd = true
         showSheet = true
+    }
+    
+    func startCameraScan() {
+        showCameraSheet = true
     }
 }
 
@@ -113,6 +121,7 @@ struct FilterRow: View {
 struct Toolbar: View {
     @EnvironmentObject var model: AppModel
     let onAddPlaceholder: () -> Void
+    let onScanDocument: () -> Void
     
     var body: some View {
         HStack {
@@ -159,6 +168,12 @@ struct Toolbar: View {
             }
             
             Spacer()
+            
+            Button(action: onScanDocument) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 16))
+            }
+            .help("Scan document with camera")
             
             Button(action: onAddPlaceholder) {
                 Image(systemName: "plus.circle.fill")
