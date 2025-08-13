@@ -4,6 +4,16 @@ import SwiftUI
 import CoreImage
 import UniformTypeIdentifiers
 
+/// Visual state for document detection feedback
+enum DetectionState {
+    case searching      // Looking for document
+    case found         // Document detected, analyzing
+    case stable        // Document stable, ready to capture
+    case capturing     // Currently capturing
+    case processing    // Processing captured image
+    case success       // Capture successful
+}
+
 /// Represents a captured document with processing state
 struct CapturedDocument: Identifiable, Equatable {
     let id = UUID()
@@ -30,8 +40,13 @@ class SimpleCameraManager: NSObject, ObservableObject {
     @Published var capturedImages: [CapturedDocument] = []
     @Published var isCapturing = false
     @Published var showCaptureButton = false
-    @Published var autoCapture = false
+    @Published var autoCapture = true  // Default to auto-capture for seamless experience
     @Published var processingStatus: String? = nil
+    
+    // Enhanced visual feedback
+    @Published var detectionState: DetectionState = .searching
+    @Published var captureProgress: Double = 0.0
+    @Published var smoothRectangle: VNRectangleObservation?
     
     let session = AVCaptureSession()
     let videoOutput = AVCaptureVideoDataOutput()
@@ -45,14 +60,21 @@ class SimpleCameraManager: NSObject, ObservableObject {
     // Document processor
     let documentProcessor = DocumentProcessor()
     
-    // Document detection stability
+    // Enhanced document detection stability
     private var recentDetections: [VNRectangleObservation] = []
     private var stableRectangle: VNRectangleObservation?
     private var lastDetectionTime = Date()
+    private var consecutiveStableFrames = 0
     
-    // Auto-capture timing
+    // Intelligent auto-capture timing
     private var stableDetectionStart: Date?
-    private let autoCaptureDuration: TimeInterval = 2.0
+    private let autoCaptureDuration: TimeInterval = 1.2  // Faster but smarter capture
+    private let requiredStableFrames = 8  // Frames needed for stability
+    private var captureCountdown: Timer?
+    
+    // Smooth rectangle interpolation
+    private var rectangleAnimationTimer: Timer?
+    private let smoothingFactor: CGFloat = 0.15  // Lower = smoother, higher = more responsive
     
     override init() {
         super.init()
@@ -228,24 +250,31 @@ class SimpleCameraManager: NSObject, ObservableObject {
         }
         
         print("Starting capture process...")
+        
+        // Update visual state for premium feedback
+        detectionState = .capturing
         isCapturing = true
         processingStatus = "Capturing..."
+        
+        // Stop any ongoing countdown
+        captureCountdown?.invalidate()
+        captureProgress = 0.0
         
         // Use JPEG for compatibility
         let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
         
         // Enable high resolution if available  
         if #available(macOS 13.0, *) {
-            // Use the highest supported photo dimensions from the output
-            let maxDimensions = photoOutput.maxPhotoDimensions
-            print("Max photo dimensions: \(maxDimensions.width)x\(maxDimensions.height)")
-            if maxDimensions.width > 0 && maxDimensions.height > 0 {
-                settings.maxPhotoDimensions = maxDimensions
+            // Use the photo output's maximum supported dimensions
+            let outputMaxDimensions = photoOutput.maxPhotoDimensions
+            print("Photo output max dimensions: \(outputMaxDimensions.width)x\(outputMaxDimensions.height)")
+            
+            if outputMaxDimensions.width > 0 && outputMaxDimensions.height > 0 {
+                // Use the photo output's max dimensions directly
+                settings.maxPhotoDimensions = outputMaxDimensions
+                print("Using photo output dimensions: \(outputMaxDimensions.width)x\(outputMaxDimensions.height)")
             } else {
-                // Fallback: Use default high resolution dimensions
-                print("Max photo dimensions is 0x0, using fallback dimensions")
-                // Set a reasonable high resolution fallback (4K)
-                settings.maxPhotoDimensions = CMVideoDimensions(width: 3840, height: 2160)
+                print("Photo output max dimensions are 0x0, using default settings")
             }
         } else {
             // For macOS < 13.0, use the legacy property
@@ -361,35 +390,106 @@ extension SimpleCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         // Add to recent detections
         recentDetections.append(rectangle)
         
-        // Keep only recent detections (last 0.5 seconds)  
-        recentDetections.removeAll { _ in now.timeIntervalSince(lastDetectionTime) > 0.5 }
-        
-        // Check if we have enough stable detections
-        if recentDetections.count >= 3 {
-            // Find average rectangle from recent detections
-            let averageRect = averageRectangle(from: recentDetections)
-            
-            // Only update if the rectangle is significantly different or we don't have one
-            if stableRectangle == nil || !rectanglesAreSimilar(averageRect, stableRectangle!) {
-                stableRectangle = averageRect
-                detectedRectangle = averageRect
-                showCaptureButton = true
-                
-                // Reset auto-capture timer when rectangle changes
-                stableDetectionStart = now
-            } else if let startTime = stableDetectionStart,
-                      autoCapture && !isCapturing && 
-                      now.timeIntervalSince(startTime) >= autoCaptureDuration {
-                // Auto-capture if rectangle has been stable long enough
-                captureDocument()
-            }
-        } else {
-            // Not enough stable detections
-            showCaptureButton = false
+        // Keep only recent detections (last 0.3 seconds for responsive feedback)
+        recentDetections = recentDetections.filter { _ in 
+            now.timeIntervalSince(lastDetectionTime) <= 0.3 
         }
+        
+        // Update detection state and visual feedback
+        updateDetectionState(with: rectangle, at: now)
+        
+        // Smooth rectangle interpolation for buttery animations
+        interpolateRectangle(to: rectangle)
         
         lastDetectionTime = now
     }
+    
+    private func updateDetectionState(with rectangle: VNRectangleObservation, at time: Date) {
+        let hasStableDetection = recentDetections.count >= 5
+        
+        if hasStableDetection {
+            let avgRectangle = averageRectangle(from: recentDetections)
+            let isRectangleSimilar = stableRectangle == nil || rectanglesAreSimilar(avgRectangle, stableRectangle!)
+            
+            if isRectangleSimilar {
+                consecutiveStableFrames += 1
+                
+                // State progression for visual feedback
+                if consecutiveStableFrames >= requiredStableFrames {
+                    if detectionState != .stable && !isCapturing {
+                        detectionState = .stable
+                        stableRectangle = avgRectangle
+                        detectedRectangle = avgRectangle
+                        showCaptureButton = true
+                        
+                        // Start intelligent auto-capture countdown
+                        startAutoCaptureCountdown()
+                    }
+                } else if consecutiveStableFrames >= 3 {
+                    detectionState = .found
+                    showCaptureButton = false
+                }
+            } else {
+                // Rectangle changed, reset stability
+                resetDetectionStability()
+                stableRectangle = avgRectangle
+                detectedRectangle = avgRectangle
+                detectionState = .found
+            }
+        } else {
+            // Not enough recent detections
+            resetDetectionStability()
+            detectionState = .searching
+            showCaptureButton = false
+        }
+    }
+    
+    private func startAutoCaptureCountdown() {
+        guard autoCapture && !isCapturing else { return }
+        
+        captureCountdown?.invalidate()
+        captureProgress = 0.0
+        
+        captureCountdown = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+            guard let self = self else { 
+                timer.invalidate()
+                return 
+            }
+            
+            Task { @MainActor in
+                self.captureProgress += 0.05 / self.autoCaptureDuration
+                
+                if self.captureProgress >= 1.0 {
+                    timer.invalidate()
+                    self.captureProgress = 0.0
+                    
+                    // Final stability check before auto-capture
+                    if self.detectionState == .stable && self.consecutiveStableFrames >= self.requiredStableFrames {
+                        self.captureDocument()
+                    }
+                }
+            }
+        }
+    }
+    
+    func resetDetectionStability() {
+        consecutiveStableFrames = 0
+        captureProgress = 0.0
+        captureCountdown?.invalidate()
+        captureCountdown = nil
+    }
+    
+    private func interpolateRectangle(to target: VNRectangleObservation) {
+        guard smoothRectangle != nil else {
+            smoothRectangle = target
+            return
+        }
+        
+        // For now, use direct assignment for smooth visual updates
+        // TODO: Implement proper smooth interpolation with custom rectangle creation
+        smoothRectangle = target
+    }
+    
     
     private func clearDetectionIfStale() {
         let now = Date()
@@ -465,6 +565,8 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                 manager.processingStatus = "Capture failed"
                 manager.isCapturing = false
                 manager.currentCaptureDelegate = nil
+                manager.detectionState = .searching
+                manager.resetDetectionStability()
                 return
             }
             
@@ -473,6 +575,8 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                 manager.processingStatus = "Processing failed"
                 manager.isCapturing = false
                 manager.currentCaptureDelegate = nil
+                manager.detectionState = .searching
+                manager.resetDetectionStability()
                 return
             }
             
@@ -481,6 +585,8 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                 manager.processingStatus = "Processing failed"
                 manager.isCapturing = false
                 manager.currentCaptureDelegate = nil
+                manager.detectionState = .searching
+                manager.resetDetectionStability()
                 return
             }
             
@@ -489,10 +595,13 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                 manager.processingStatus = "Processing failed"
                 manager.isCapturing = false
                 manager.currentCaptureDelegate = nil
+                manager.detectionState = .searching
+                manager.resetDetectionStability()
                 return
             }
             
             print("Successfully got CGImage, starting processing...")
+            manager.detectionState = .processing
             manager.processingStatus = "Processing document..."
             
             // Capture processor reference to avoid actor isolation issues
@@ -532,21 +641,28 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
                 
                 print("Created CapturedDocument, updating UI...")
                 
-                // Update UI on main actor
+                // Update UI on main actor with premium feedback
                 await MainActor.run {
                     manager.capturedImages.append(capturedDoc)
                     manager.isCapturing = false
-                    manager.processingStatus = nil
-                    manager.currentCaptureDelegate = nil  // Clear delegate reference
+                    manager.currentCaptureDelegate = nil
+                    
+                    // Enhanced success state with smooth transitions
+                    manager.detectionState = .success
+                    manager.processingStatus = "Captured!"
                     
                     print("Updated UI - capture complete")
                     
-                    // Flash effect - briefly show capture success
+                    // Elegant success animation
                     Task {
-                        manager.processingStatus = "Captured!"
-                        try? await Task.sleep(for: .seconds(0.5))
+                        try? await Task.sleep(for: .seconds(0.8))
+                        
+                        // Reset to searching state smoothly
+                        manager.detectionState = .searching
                         manager.processingStatus = nil
-                        print("Flash effect complete")
+                        manager.resetDetectionStability()
+                        
+                        print("Success animation complete")
                     }
                 }
             }

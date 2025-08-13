@@ -5,6 +5,22 @@ import Cocoa
 
 // Status is now a simple String - no more enum limitations
 
+// MARK: - Multi-File Attachment Support
+
+/// Represents a single file attachment within a document record
+struct DocumentAttachment: Codable, Identifiable, Hashable {
+    let id = UUID()
+    var filename: String
+    let originalFilename: String  // Original name before any deduplication
+    let fileSize: Int64
+    let dateAdded: Date
+    let isOriginalFile: Bool  // True for the first/primary file, false for additional attachments
+    
+    enum CodingKeys: String, CodingKey {
+        case filename, originalFilename, fileSize, dateAdded, isOriginalFile
+    }
+}
+
 struct Sidecar: Codable, Equatable, Hashable {
     var name: String
     var amount: Double?
@@ -13,6 +29,13 @@ struct Sidecar: Codable, Equatable, Hashable {
     var year: Int
     var createdAt: Date
     var sourcePath: String?
+    
+    // Multi-file support
+    var attachments: [DocumentAttachment]?
+    var isMultiFile: Bool { (attachments?.count ?? 0) > 1 }
+    
+    // Migration support - if attachments is nil, this is a legacy single-file document
+    var hasAttachments: Bool { attachments != nil }
 }
 
 struct DocumentItem: Identifiable, Hashable {
@@ -23,7 +46,50 @@ struct DocumentItem: Identifiable, Hashable {
     var isDownloading: Bool = false
     var downloadProgress: Double = 0.0
 
+    // MARK: - Backward Compatibility Properties
+    
+    /// Primary filename - for single-file documents, this is the file itself
+    /// For multi-file documents, this is the folder name
     var filename: String { url.lastPathComponent }
+    
+    // MARK: - Multi-File Support
+    
+    /// Returns true if this document has multiple file attachments
+    var isMultiFile: Bool { meta.isMultiFile }
+    
+    /// Returns the number of file attachments
+    var attachmentCount: Int { meta.attachments?.count ?? 1 }
+    
+    /// For multi-file documents, returns the document folder URL
+    /// For single-file documents, returns the parent directory
+    var documentFolderURL: URL {
+        if isMultiFile {
+            return url  // url points to the document folder
+        } else {
+            return url.deletingLastPathComponent()  // url points to the file
+        }
+    }
+    
+    /// Returns URLs for all file attachments
+    var attachmentURLs: [URL] {
+        if let attachments = meta.attachments {
+            return attachments.map { documentFolderURL.appendingPathComponent($0.filename) }
+        } else {
+            // Legacy single-file document
+            return [url]
+        }
+    }
+    
+    /// Returns the primary attachment URL (first file)
+    var primaryAttachmentURL: URL {
+        return attachmentURLs.first ?? url
+    }
+    
+    /// Display name for the attachment count
+    var attachmentCountDisplay: String {
+        let count = attachmentCount
+        return count == 1 ? "1 file" : "\(count) files"
+    }
 }
 
 final class AppModel: ObservableObject {
@@ -35,6 +101,7 @@ final class AppModel: ObservableObject {
     @Published var query: String = ""
     @Published var copyOnImport: Bool = true
     @Published var showingCSVImport = false
+    @Published var lastImportError: String? = nil
     @Published var root: URL {
         didSet {
             // Stop accessing old URL if it was security-scoped
@@ -242,7 +309,7 @@ final class AppModel: ObservableObject {
     
     @MainActor
     private func performReload() async {
-        let found = await Task.detached { [weak self] () -> ([DocumentItem], Set<Int>) in
+        let found = Task.detached { [weak self] () -> ([DocumentItem], Set<Int>) in
             guard let self = self else { return ([], Set<Int>()) }
             
             var foundItems: [DocumentItem] = []
@@ -256,22 +323,45 @@ final class AppModel: ObservableObject {
                 if let y = Int(yURL.lastPathComponent) {
                     var hasDocuments = false
                     if let files = try? self.fm.contentsOfDirectory(at: yURL, includingPropertiesForKeys: [.ubiquitousItemDownloadingStatusKey], options: [.skipsHiddenFiles]) {
+                        // First pass: identify document folders vs standalone files
+                        var processedItems = Set<String>()
+                        
                         for f in files where f.pathExtension.lowercased() != "json" {
+                            let fileName = f.lastPathComponent
+                            if processedItems.contains(fileName) { continue }
+                            
                             let sc = f.appendingPathExtension("meta.json")
-                            if let meta = self.loadSidecar(sc, fallbackFor: f, year: y) {
-                                var item = DocumentItem(url: f, sidecarURL: sc, meta: meta)
-                                
-                                // Check if file needs downloading from iCloud
-                                if let resourceValues = try? f.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]) {
-                                    if let status = resourceValues.ubiquitousItemDownloadingStatus {
-                                        if status == .notDownloaded {
-                                            item.isDownloading = true
+                            
+                            // Check if this is a document folder or single file
+                            var isDirectory: ObjCBool = false
+                            let fileExists = self.fm.fileExists(atPath: f.path, isDirectory: &isDirectory)
+                            
+                            if fileExists && isDirectory.boolValue {
+                                // This is a multi-file document folder
+                                if let meta = self.loadSidecar(sc, fallbackFor: f, year: y) {
+                                    let item = DocumentItem(url: f, sidecarURL: sc, meta: meta)
+                                    foundItems.append(item)
+                                    hasDocuments = true
+                                    processedItems.insert(fileName)
+                                }
+                            } else if fileExists && !isDirectory.boolValue {
+                                // This is a single file - check if it has modern multi-file metadata
+                                if let meta = self.loadSidecar(sc, fallbackFor: f, year: y) {
+                                    var item = DocumentItem(url: f, sidecarURL: sc, meta: meta)
+                                    
+                                    // Check if file needs downloading from iCloud
+                                    if let resourceValues = try? f.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]) {
+                                        if let status = resourceValues.ubiquitousItemDownloadingStatus {
+                                            if status == .notDownloaded {
+                                                item.isDownloading = true
+                                            }
                                         }
                                     }
+                                    
+                                    foundItems.append(item)
+                                    hasDocuments = true
+                                    processedItems.insert(fileName)
                                 }
-                                
-                                foundItems.append(item)
-                                hasDocuments = true
                             }
                         }
                     }
@@ -282,12 +372,14 @@ final class AppModel: ObservableObject {
             }
             
             return (foundItems, foundYears)
-        }.value
+        }
+        
+        let foundResult = await found.value
         
         // Update UI on main actor
-        self.years = found.1.sorted(by: >)
+        self.years = foundResult.1.sorted(by: >)
         if self.selectedYear == nil { self.selectedYear = self.years.first }
-        self.items = found.0.sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+        self.items = foundResult.0.sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
         
         // Trigger downloads for any files that need it
         for item in self.items where item.isDownloading {
@@ -299,10 +391,50 @@ final class AppModel: ObservableObject {
         if let data = try? Data(contentsOf: url), let sc = try? JSONDecoder.iso.decode(Sidecar.self, from: data) { 
             // Discover and add this status if it's new
             discoverStatus(sc.status)
+            
+            // Migration: if this is a legacy single-file document, create attachment metadata
+            if sc.attachments == nil {
+                var migratedSidecar = sc
+                migratedSidecar.attachments = [createAttachmentFromFile(file)]
+                return migratedSidecar
+            }
+            
             return sc 
         }
+        
+        // Create new sidecar for file without metadata
         let base = file.deletingPathExtension().lastPathComponent
-        return Sidecar(name: base, amount: nil, notes: "", status: defaultStatus(), year: year, createdAt: .now, sourcePath: nil)
+        let attachment = createAttachmentFromFile(file)
+        
+        return Sidecar(
+            name: base, 
+            amount: nil, 
+            notes: "", 
+            status: defaultStatus(), 
+            year: year, 
+            createdAt: .now, 
+            sourcePath: nil,
+            attachments: [attachment]
+        )
+    }
+    
+    /// Creates a DocumentAttachment from a file URL
+    private func createAttachmentFromFile(_ fileURL: URL) -> DocumentAttachment {
+        let fileSize: Int64
+        do {
+            let attributes = try fm.attributesOfItem(atPath: fileURL.path)
+            fileSize = attributes[.size] as? Int64 ?? 0
+        } catch {
+            fileSize = 0
+        }
+        
+        return DocumentAttachment(
+            filename: fileURL.lastPathComponent,
+            originalFilename: fileURL.lastPathComponent,
+            fileSize: fileSize,
+            dateAdded: Date(),
+            isOriginalFile: true
+        )
     }
 
     func saveSidecar(_ meta: Sidecar, to url: URL) {
@@ -311,7 +443,7 @@ final class AppModel: ObservableObject {
     }
 
     @MainActor
-    func importURLs(_ urls: [URL], with draft: DraftMeta) {
+    func importURLs(_ urls: [URL], with draft: DraftMeta, addToExistingDocument: DocumentItem? = nil) {
         Task {
             // Check if we have access to the root folder
             if await !hasAccessToRoot() {
@@ -320,9 +452,17 @@ final class AppModel: ObservableObject {
                 return
             }
             
-            for src in urls { 
-                await importURL(src, with: draft) 
+            if let existingDocument = addToExistingDocument {
+                // Add files to existing document
+                await addFilesToExistingDocument(urls, to: existingDocument)
+            } else if urls.count == 1 {
+                // Single file import - create single-file document
+                await importURL(urls[0], with: draft)
+            } else {
+                // Multiple files - create multi-file document
+                await importMultipleFiles(urls, with: draft)
             }
+            
             await performReload()
         }
     }
@@ -402,11 +542,27 @@ final class AppModel: ObservableObject {
                     try self.fm.moveItem(at: src, to: dest) 
                 }
                 
+                // Create attachment metadata
+                let attachment = self.createAttachmentFromFile(dest)
+                
                 let sidecarURL = dest.appendingPathExtension("meta.json")
-                let meta = Sidecar(name: draft.name, amount: draft.amount, notes: draft.notes, status: draft.status, year: draft.year, createdAt: .now, sourcePath: src.path)
+                let meta = Sidecar(
+                    name: draft.name, 
+                    amount: draft.amount, 
+                    notes: draft.notes, 
+                    status: draft.status, 
+                    year: draft.year, 
+                    createdAt: .now, 
+                    sourcePath: src.path,
+                    attachments: [attachment]
+                )
                 self.saveSidecar(meta, to: sidecarURL)
             } catch {
                 print("Import failed: \(error)")
+                
+                await MainActor.run {
+                    self.lastImportError = "Failed to import file: \(error.localizedDescription)"
+                }
                 
                 // Check if it's a permission error
                 let nsError = error as NSError
@@ -419,14 +575,200 @@ final class AppModel: ObservableObject {
             }
         }.value
     }
+    
+    /// Imports multiple files as a single multi-file document
+    private func importMultipleFiles(_ urls: [URL], with draft: DraftMeta) async {
+        await Task.detached { [weak self] in
+            guard let self = self else { return }
+            
+            let yearURL = self.root.appending(path: String(draft.year))
+            
+            do {
+                try self.fm.createDirectory(at: yearURL, withIntermediateDirectories: true)
+                
+                // Create a unique document folder name
+                let sanitizedName = self.sanitizeFilename(draft.name)
+                let documentFolderName = sanitizedName.isEmpty ? "Document" : sanitizedName
+                let documentFolder = self.uniqueDestination(in: yearURL, original: documentFolderName, isDirectory: true)
+                
+                // Create the document folder
+                try self.fm.createDirectory(at: documentFolder, withIntermediateDirectories: true)
+                
+                var attachments: [DocumentAttachment] = []
+                
+                // Import each file into the document folder
+                for (index, src) in urls.enumerated() {
+                    let dest = self.uniqueDestination(in: documentFolder, original: src.lastPathComponent)
+                    
+                    if self.copyOnImport {
+                        try self.fm.copyItem(at: src, to: dest)
+                    } else {
+                        try self.fm.moveItem(at: src, to: dest)
+                    }
+                    
+                    // Create attachment metadata
+                    let fileSize: Int64
+                    do {
+                        let attributes = try self.fm.attributesOfItem(atPath: dest.path)
+                        fileSize = attributes[.size] as? Int64 ?? 0
+                    } catch {
+                        fileSize = 0
+                    }
+                    
+                    let attachment = DocumentAttachment(
+                        filename: dest.lastPathComponent,
+                        originalFilename: src.lastPathComponent,
+                        fileSize: fileSize,
+                        dateAdded: Date(),
+                        isOriginalFile: index == 0
+                    )
+                    
+                    attachments.append(attachment)
+                }
+                
+                // Create sidecar metadata for the document folder
+                let sidecarURL = documentFolder.appendingPathExtension("meta.json")
+                let meta = Sidecar(
+                    name: draft.name,
+                    amount: draft.amount,
+                    notes: draft.notes,
+                    status: draft.status,
+                    year: draft.year,
+                    createdAt: .now,
+                    sourcePath: urls.first?.path,
+                    attachments: attachments
+                )
+                
+                self.saveSidecar(meta, to: sidecarURL)
+                
+            } catch {
+                print("Multi-file import failed: \(error)")
+                
+                await MainActor.run {
+                    self.lastImportError = "Failed to import files: \(error.localizedDescription)"
+                }
+                
+                // Check if it's a permission error
+                let nsError = error as NSError
+                if nsError.code == 513 || nsError.domain == NSCocoaErrorDomain {
+                    print("Permission denied. Requesting folder access...")
+                    await MainActor.run {
+                        self.selectNewRootFolder()
+                    }
+                }
+            }
+        }.value
+    }
+    
+    /// Adds files to an existing document, converting single-file to multi-file if needed
+    private func addFilesToExistingDocument(_ urls: [URL], to document: DocumentItem) async {
+        await Task.detached { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                var updatedMeta = document.meta
+                var documentFolder: URL
+                
+                // Handle conversion from single-file to multi-file
+                if !document.isMultiFile {
+                    // Convert single file to multi-file document folder
+                    let parentFolder = document.url.deletingLastPathComponent()
+                    let documentName = document.meta.name
+                    let sanitizedName = self.sanitizeFilename(documentName)
+                    let folderName = sanitizedName.isEmpty ? "Document" : sanitizedName
+                    
+                    documentFolder = self.uniqueDestination(in: parentFolder, original: folderName, isDirectory: true)
+                    
+                    // Create document folder
+                    try self.fm.createDirectory(at: documentFolder, withIntermediateDirectories: true)
+                    
+                    // Move existing file into the folder
+                    let originalFile = document.url
+                    let newLocation = documentFolder.appendingPathComponent(originalFile.lastPathComponent)
+                    try self.fm.moveItem(at: originalFile, to: newLocation)
+                    
+                    // Update existing attachment metadata
+                    if var existingAttachment = updatedMeta.attachments?.first {
+                        existingAttachment.filename = newLocation.lastPathComponent
+                        updatedMeta.attachments = [existingAttachment]
+                    }
+                    
+                    // Move sidecar file
+                    let newSidecarURL = documentFolder.appendingPathExtension("meta.json")
+                    try self.fm.moveItem(at: document.sidecarURL, to: newSidecarURL)
+                } else {
+                    documentFolder = document.documentFolderURL
+                }
+                
+                // Add new files to the document folder
+                var newAttachments = updatedMeta.attachments ?? []
+                
+                for src in urls {
+                    let dest = self.uniqueDestination(in: documentFolder, original: src.lastPathComponent)
+                    
+                    if self.copyOnImport {
+                        try self.fm.copyItem(at: src, to: dest)
+                    } else {
+                        try self.fm.moveItem(at: src, to: dest)
+                    }
+                    
+                    // Create attachment metadata
+                    let fileSize: Int64
+                    do {
+                        let attributes = try self.fm.attributesOfItem(atPath: dest.path)
+                        fileSize = attributes[.size] as? Int64 ?? 0
+                    } catch {
+                        fileSize = 0
+                    }
+                    
+                    let attachment = DocumentAttachment(
+                        filename: dest.lastPathComponent,
+                        originalFilename: src.lastPathComponent,
+                        fileSize: fileSize,
+                        dateAdded: Date(),
+                        isOriginalFile: false
+                    )
+                    
+                    newAttachments.append(attachment)
+                }
+                
+                updatedMeta.attachments = newAttachments
+                
+                // Save updated metadata
+                let sidecarURL = documentFolder.appendingPathExtension("meta.json")
+                self.saveSidecar(updatedMeta, to: sidecarURL)
+                
+            } catch {
+                print("Failed to add files to existing document: \(error)")
+            }
+        }.value
+    }
+    
+    /// Sanitizes a filename for use as a folder name
+    private func sanitizeFilename(_ name: String) -> String {
+        return name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "?", with: "")
+            .replacingOccurrences(of: "<", with: "")
+            .replacingOccurrences(of: ">", with: "")
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: "|", with: "-")
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "\"", with: "")
+    }
 
-    private func uniqueDestination(in folder: URL, original: String) -> URL {
+    private func uniqueDestination(in folder: URL, original: String, isDirectory: Bool = false) -> URL {
         var attempt = folder.appending(path: original)
         var idx = 1
         while fm.fileExists(atPath: attempt.path) {
-            let base = URL(filePath: original).deletingPathExtension().lastPathComponent
-            let ext = URL(filePath: original).pathExtension
-            attempt = folder.appending(path: "\(base)-\(idx).\(ext)")
+            if isDirectory {
+                attempt = folder.appending(path: "\(original)-\(idx)")
+            } else {
+                let base = URL(filePath: original).deletingPathExtension().lastPathComponent
+                let ext = URL(filePath: original).pathExtension
+                attempt = folder.appending(path: "\(base)-\(idx).\(ext)")
+            }
             idx += 1
         }
         return attempt
@@ -455,11 +797,21 @@ final class AppModel: ObservableObject {
     @MainActor
     func deleteItem(_ item: DocumentItem) {
         do {
-            try fm.removeItem(at: item.url)
-            try? fm.removeItem(at: item.sidecarURL)
-            Task { @MainActor in
-                reload()
+            if item.isMultiFile {
+                // Delete the entire document folder and its contents
+                try fm.removeItem(at: item.documentFolderURL)
+                try? fm.removeItem(at: item.sidecarURL)
+            } else {
+                // Delete single file and its sidecar
+                try fm.removeItem(at: item.url)
+                try? fm.removeItem(at: item.sidecarURL)
             }
+            
+            // Update the in-memory items array directly
+            items.removeAll { $0.id == item.id }
+            updateYearsFromItems()
+            
+            print("Successfully deleted: \(item.filename)")
         } catch {
             print("Failed to delete: \(error)")
         }
@@ -467,17 +819,44 @@ final class AppModel: ObservableObject {
     
     @MainActor
     func deleteItems(_ items: Set<DocumentItem>) {
+        var deletedItems: Set<DocumentItem> = []
+        
         for item in items {
             do {
-                try fm.removeItem(at: item.url)
-                try? fm.removeItem(at: item.sidecarURL)
+                if item.isMultiFile {
+                    // Delete the entire document folder and its contents
+                    try fm.removeItem(at: item.documentFolderURL)
+                    try? fm.removeItem(at: item.sidecarURL)
+                } else {
+                    // Delete single file and its sidecar
+                    try fm.removeItem(at: item.url)
+                    try? fm.removeItem(at: item.sidecarURL)
+                }
+                deletedItems.insert(item)
+                print("Successfully deleted: \(item.filename)")
             } catch {
                 print("Failed to delete \(item.filename): \(error)")
             }
         }
-        Task { @MainActor in
-            reload()
+        
+        // Update the in-memory items array directly for immediate UI feedback
+        if !deletedItems.isEmpty {
+            self.items.removeAll { item in
+                deletedItems.contains(item)
+            }
+            
+            // Also update years if needed
+            updateYearsFromItems()
+            
+            print("Removed \(deletedItems.count) items from in-memory array")
         }
+    }
+    
+    // MARK: - Helper Methods
+    
+    @MainActor
+    private func updateYearsFromItems() {
+        years = Array(Set(items.map { $0.meta.year })).sorted(by: >)
     }
     
     // MARK: - Status Management
@@ -535,6 +914,12 @@ final class AppModel: ObservableObject {
     func reorderStatuses(_ statuses: [String]) {
         availableStatuses = statuses
         saveStatuses()
+    }
+    
+    // MARK: - Error Handling
+    
+    func clearImportError() {
+        lastImportError = nil
     }
     
     // MARK: - iCloud Support
@@ -669,6 +1054,96 @@ final class AppModel: ObservableObject {
                 return false
             }
         }.value
+    }
+    
+    // MARK: - Multi-File Attachment Management
+    
+    /// Removes a single file attachment from a multi-file document
+    @MainActor
+    func removeAttachment(_ attachment: DocumentAttachment, from document: DocumentItem) {
+        guard document.isMultiFile, var attachments = document.meta.attachments else { return }
+        
+        // Remove the attachment from metadata
+        attachments.removeAll { $0.id == attachment.id }
+        
+        // Handle special cases
+        if attachments.isEmpty {
+            // No attachments left - delete the entire document
+            deleteItem(document)
+            return
+        } else if attachments.count == 1 {
+            // Convert back to single-file document
+            convertToSingleFile(document: document, remainingAttachment: attachments[0])
+            return
+        }
+        
+        // Update metadata
+        var updatedMeta = document.meta
+        updatedMeta.attachments = attachments
+        
+        // Remove the physical file
+        let fileURL = document.documentFolderURL.appendingPathComponent(attachment.filename)
+        do {
+            try fm.removeItem(at: fileURL)
+            print("Removed attachment: \(attachment.filename)")
+        } catch {
+            print("Failed to remove attachment file: \(error)")
+        }
+        
+        // Save updated metadata
+        saveSidecar(updatedMeta, to: document.sidecarURL)
+        
+        // Update in-memory item
+        if let index = items.firstIndex(where: { $0.id == document.id }) {
+            var updatedDocument = document
+            updatedDocument.meta = updatedMeta
+            items[index] = updatedDocument
+        }
+    }
+    
+    /// Converts a multi-file document with one remaining attachment back to single-file
+    private func convertToSingleFile(document: DocumentItem, remainingAttachment: DocumentAttachment) {
+        let documentFolder = document.documentFolderURL
+        let attachmentURL = documentFolder.appendingPathComponent(remainingAttachment.filename)
+        let parentFolder = documentFolder.deletingLastPathComponent()
+        let newFileURL = uniqueDestination(in: parentFolder, original: remainingAttachment.filename)
+        
+        do {
+            // Move the file out of the document folder
+            try fm.moveItem(at: attachmentURL, to: newFileURL)
+            
+            // Update metadata to single-file format
+            var updatedMeta = document.meta
+            updatedMeta.attachments = [DocumentAttachment(
+                filename: newFileURL.lastPathComponent,
+                originalFilename: remainingAttachment.originalFilename,
+                fileSize: remainingAttachment.fileSize,
+                dateAdded: remainingAttachment.dateAdded,
+                isOriginalFile: true
+            )]
+            
+            // Create new sidecar for the single file
+            let newSidecarURL = newFileURL.appendingPathExtension("meta.json")
+            saveSidecar(updatedMeta, to: newSidecarURL)
+            
+            // Remove the old document folder and sidecar
+            try fm.removeItem(at: documentFolder)
+            try? fm.removeItem(at: document.sidecarURL)
+            
+            // Update in-memory item
+            if let index = items.firstIndex(where: { $0.id == document.id }) {
+                var updatedDocument = document
+                updatedDocument.url = newFileURL
+                updatedDocument.sidecarURL = newSidecarURL
+                updatedDocument.meta = updatedMeta
+                items[index] = updatedDocument
+            }
+            
+            print("Converted multi-file document back to single file: \(newFileURL.lastPathComponent)")
+            
+        } catch {
+            print("Failed to convert to single file: \(error)")
+        }
     }
     
     deinit {

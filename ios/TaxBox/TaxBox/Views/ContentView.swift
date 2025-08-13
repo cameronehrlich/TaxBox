@@ -57,7 +57,7 @@ struct ContentView: View {
                             : "\(capturedURLs.count) Scanned Documents \(timestamp)"
                         
                         // Default status for camera documents
-                        draft.status = "Ready" // Camera scanned documents are ready for processing
+                        draft.status = "Done" // Camera scanned documents are complete files
                         isManualAdd = false
                         
                         // Close camera sheet and open import sheet smoothly
@@ -247,50 +247,7 @@ struct TableView: View {
             }.width(120)
 
             TableColumn("File") { item in
-                HStack {
-                    if item.isDownloading {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 28, height: 36)
-                    } else {
-                        ThumbnailView(url: item.url, isOffloaded: item.isDownloading)
-                    }
-                    
-                    if item.filename.hasSuffix(".placeholder") {
-                        // Show placeholder state instead of clickable link
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.badge.plus")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("No file attached")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .italic()
-                        }
-                    } else {
-                        Button(action: {
-                            guard !item.isDownloading else { return }
-                            
-                            Task {
-                                let isAvailable = await model.ensureFileDownloaded(item)
-                                if isAvailable {
-                                    NSWorkspace.shared.open(item.url)
-                                }
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Text(item.filename)
-                                if item.isDownloading {
-                                    Image(systemName: "icloud.and.arrow.down")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .buttonStyle(.link)
-                        .disabled(item.isDownloading)
-                    }
-                }
+                FileAttachmentCell(item: item)
             }
         }
         .contextMenu {
@@ -404,6 +361,251 @@ struct ThumbnailView: View {
                 }
             } catch {
                 // Thumbnail generation failed, leave as placeholder
+            }
+        }
+    }
+}
+
+// MARK: - Multi-File Attachments Popover
+
+struct AttachmentsPopoverView: View {
+    let document: DocumentItem
+    @EnvironmentObject var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Image(systemName: "paperclip")
+                    .foregroundColor(.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("File Attachments")
+                        .font(.headline)
+                    Text(document.meta.name)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            
+            Divider()
+            
+            // Attachments list
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    if let attachments = document.meta.attachments {
+                        ForEach(attachments) { attachment in
+                            AttachmentRowView(
+                                attachment: attachment,
+                                document: document,
+                                onRemove: { attachment in
+                                    model.removeAttachment(attachment, from: document)
+                                }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            
+            Divider()
+            
+            // Footer with drag & drop area
+            VStack(spacing: 8) {
+                Text("Drop files here to add more attachments")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                HStack {
+                    Text("\(document.attachmentCount) file(s)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    if let totalSize = document.meta.attachments?.reduce(0, { $0 + $1.fileSize }) {
+                        Text(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+        }
+        .background(Color(NSColor.controlBackgroundColor))
+        .dropDestination(for: URL.self) { urls, _ in
+            // Add files to existing document
+            let draft = DraftMeta(
+                name: document.meta.name,
+                amount: document.meta.amount,
+                notes: document.meta.notes,
+                status: document.meta.status,
+                year: document.meta.year
+            )
+            model.importURLs(urls, with: draft, addToExistingDocument: document)
+            return true
+        }
+    }
+}
+
+struct AttachmentRowView: View {
+    let attachment: DocumentAttachment
+    let document: DocumentItem
+    let onRemove: (DocumentAttachment) -> Void
+    @EnvironmentObject var model: AppModel
+    
+    var attachmentURL: URL {
+        document.documentFolderURL.appendingPathComponent(attachment.filename)
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Thumbnail
+            ThumbnailView(url: attachmentURL, isOffloaded: false)
+                .frame(width: 32, height: 40)
+            
+            // File info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(attachment.originalFilename)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                
+                HStack(spacing: 8) {
+                    Text(ByteCountFormatter.string(fromByteCount: attachment.fileSize, countStyle: .file))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if attachment.isOriginalFile {
+                        Text("Primary")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.2))
+                            .foregroundColor(.accentColor)
+                            .cornerRadius(4)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Actions
+            HStack(spacing: 8) {
+                // Open file button
+                Button(action: {
+                    NSWorkspace.shared.open(attachmentURL)
+                }) {
+                    Image(systemName: "eye")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .help("Open file")
+                
+                // Remove button (only if more than one attachment)
+                if document.attachmentCount > 1 {
+                    Button(action: {
+                        onRemove(attachment)
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove attachment")
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - File Attachment Cell with Proper Popover Anchoring
+
+struct FileAttachmentCell: View {
+    let item: DocumentItem
+    @EnvironmentObject var model: AppModel
+    @State private var showingAttachmentsPopover = false
+    
+    var body: some View {
+        HStack {
+            if item.isDownloading {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 28, height: 36)
+            } else {
+                ThumbnailView(url: item.primaryAttachmentURL, isOffloaded: item.isDownloading)
+            }
+            
+            if item.filename.hasSuffix(".placeholder") {
+                // Show placeholder state instead of clickable link
+                Text("No file attached")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    // Main file button/link
+                    Button(action: {
+                        guard !item.isDownloading else { return }
+                        
+                        if item.isMultiFile {
+                            // Show attachments popover for multi-file documents
+                            showingAttachmentsPopover = true
+                        } else {
+                            // Open single file directly
+                            Task {
+                                let isAvailable = await model.ensureFileDownloaded(item)
+                                if isAvailable {
+                                    NSWorkspace.shared.open(item.primaryAttachmentURL)
+                                }
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            if item.isMultiFile {
+                                Image(systemName: "folder")
+                                    .font(.caption)
+                                Text(item.attachmentCountDisplay)
+                            } else {
+                                Text(item.filename)
+                            }
+                            
+                            if item.isDownloading {
+                                Image(systemName: "icloud.and.arrow.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.link)
+                    .disabled(item.isDownloading)
+                    .popover(isPresented: $showingAttachmentsPopover, arrowEdge: .trailing) {
+                        AttachmentsPopoverView(document: item)
+                            .frame(width: 400, height: 300)
+                    }
+                    
+                    // Show file count for multi-file documents
+                    if item.isMultiFile {
+                        Text("\(item.attachmentCount) attachments")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         }
     }

@@ -8,6 +8,8 @@ struct ImportSheet: View {
     let isManualAdd: Bool
     var completion: (Bool) -> Void
     @State private var selectedPreviewIndex = 0
+    @State private var addToExistingDocument: DocumentItem? = nil
+    @State private var showingDocumentPicker = false
 
     var body: some View {
         HStack(spacing: 20) {
@@ -55,7 +57,34 @@ struct ImportSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(isManualAdd ? "Add Placeholder" : "Add Documents").font(.title2).bold()
                 if !isManualAdd {
-                    Text("\(urls.count) file(s)")
+                    HStack {
+                        Text("\(urls.count) file(s)")
+                        Spacer()
+                        if urls.count > 1 {
+                            Button("Add to Existing Document") {
+                                showingDocumentPicker = true
+                            }
+                            .buttonStyle(.link)
+                        }
+                    }
+                    
+                    if let existingDoc = addToExistingDocument {
+                        HStack {
+                            Image(systemName: "paperclip")
+                                .foregroundColor(.accentColor)
+                            Text("Adding to: \(existingDoc.meta.name)")
+                                .font(.caption)
+                            Button("Change") {
+                                showingDocumentPicker = true
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.accentColor.opacity(0.1))
+                        .cornerRadius(6)
+                    }
                 }
                 TextField(isManualAdd ? "Document name (e.g., 'W-2 from Employer')" : "Name", text: $draft.name)
                 HStack {
@@ -76,12 +105,38 @@ struct ImportSheet: View {
                 HStack { 
                     Spacer()
                     Button("Cancel") { completion(false) }
-                    Button(isManualAdd ? "Create" : "Add") { completion(true) }.keyboardShortcut(.defaultAction)
+                    Button(buttonTitle) { 
+                        if let existingDoc = addToExistingDocument {
+                            // Add to existing document
+                            model.importURLs(urls, with: draft, addToExistingDocument: existingDoc)
+                            completion(true)
+                        } else {
+                            // Normal completion flow
+                            completion(true)
+                        }
+                    }.keyboardShortcut(.defaultAction)
                 }
             }
             .frame(width: 280)
         }
         .padding(20)
+        .sheet(isPresented: $showingDocumentPicker) {
+            DocumentPickerSheet(
+                selectedDocument: $addToExistingDocument,
+                isPresented: $showingDocumentPicker
+            )
+            .frame(width: 500, height: 400)
+        }
+    }
+    
+    private var buttonTitle: String {
+        if addToExistingDocument != nil {
+            return "Add to Document"
+        } else if isManualAdd {
+            return "Create"
+        } else {
+            return "Add"
+        }
     }
 }
 
@@ -188,6 +243,120 @@ struct DocumentPreviewView: View {
                     self.image = NSImage(contentsOf: self.url)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Document Picker for Adding to Existing Documents
+
+struct DocumentPickerSheet: View {
+    @Binding var selectedDocument: DocumentItem?
+    @Binding var isPresented: Bool
+    @EnvironmentObject var model: AppModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Text("Add to Existing Document")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button("Cancel") {
+                    isPresented = false
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            
+            Divider()
+            
+            // Document list
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(model.filteredItems()) { document in
+                        DocumentPickerRow(
+                            document: document,
+                            isSelected: selectedDocument?.id == document.id,
+                            onSelect: {
+                                selectedDocument = document
+                                isPresented = false
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            
+            // Footer
+            HStack {
+                Text("\\(model.filteredItems().count) documents available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if selectedDocument != nil {
+                    Button("Select") {
+                        isPresented = false
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+}
+
+struct DocumentPickerRow: View {
+    let document: DocumentItem
+    let isSelected: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Thumbnail
+            ThumbnailView(url: document.primaryAttachmentURL, isOffloaded: false)
+                .frame(width: 32, height: 40)
+            
+            // Document info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(document.meta.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                
+                HStack(spacing: 8) {
+                    Text(document.attachmentCountDisplay)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(document.meta.status)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Color.secondary.opacity(0.2))
+                        .foregroundColor(.secondary)
+                        .cornerRadius(4)
+                }
+            }
+            
+            Spacer()
+            
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.accentColor)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .onTapGesture {
+            onSelect()
         }
     }
 }

@@ -12,6 +12,14 @@ struct DraftMeta {
         let y = Calendar.current.component(.year, from: .now)
         return DraftMeta(name: base, amount: nil, notes: "", status: "Done", year: y)
     }
+    
+    init(name: String, amount: Double?, notes: String, status: String, year: Int) {
+        self.name = name
+        self.amount = amount
+        self.notes = notes
+        self.status = status
+        self.year = year
+    }
 }
 
 extension DateFormatter {

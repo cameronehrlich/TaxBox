@@ -40,8 +40,13 @@ struct SimpleCameraView: View {
                         }
                     }
                     .overlay {
-                        if let rect = camera.detectedRectangle {
-                            DocumentDetectionOverlay(rectangle: rect)
+                        // Enhanced detection overlay with smooth animations
+                        if let rect = camera.smoothRectangle ?? camera.detectedRectangle {
+                            PremiumDetectionOverlay(
+                                rectangle: rect,
+                                detectionState: camera.detectionState,
+                                captureProgress: camera.captureProgress
+                            )
                         }
                     }
             } else {
@@ -236,18 +241,50 @@ struct SimpleCameraView: View {
     private var statusBar: some View {
         VStack(spacing: 8) {
             HStack {
-                if let status = camera.processingStatus {
-                    Label(status, systemImage: "doc.text.magnifyingglass")
+                // Premium status messaging based on detection state
+                switch camera.detectionState {
+                case .searching:
+                    if !camera.capturedImages.isEmpty {
+                        Label("\(camera.capturedImages.count) document(s) captured", systemImage: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    } else {
+                        Label("Position document in frame", systemImage: "doc.viewfinder")
+                            .foregroundColor(.white)
+                    }
+                    
+                case .found:
+                    Label("Document found - hold steady", systemImage: "target")
                         .foregroundColor(.yellow)
-                } else if !camera.capturedImages.isEmpty {
-                    Label("\(camera.capturedImages.count) document(s) captured", systemImage: "checkmark.circle.fill")
+                    
+                case .stable:
+                    if camera.autoCapture {
+                        HStack {
+                            Label("Auto-capturing", systemImage: "camera.fill")
+                                .foregroundColor(.green)
+                            
+                            // Elegant progress indicator
+                            if camera.captureProgress > 0 {
+                                ProgressView(value: camera.captureProgress)
+                                    .frame(width: 40)
+                                    .accentColor(.green)
+                            }
+                        }
+                    } else {
+                        Label("Ready to capture", systemImage: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    }
+                    
+                case .capturing:
+                    Label("Capturing...", systemImage: "camera.fill")
+                        .foregroundColor(.blue)
+                    
+                case .processing:
+                    Label("Enhancing document...", systemImage: "wand.and.rays")
+                        .foregroundColor(.purple)
+                    
+                case .success:
+                    Label("Captured successfully!", systemImage: "checkmark.circle.fill")
                         .foregroundColor(.green)
-                } else if camera.detectedRectangle != nil {
-                    Label("Document detected", systemImage: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                } else {
-                    Label("Position document in frame", systemImage: "doc.viewfinder")
-                        .foregroundColor(.white)
                 }
             }
             
@@ -307,42 +344,186 @@ struct CameraPreview: NSViewRepresentable {
     }
 }
 
-// MARK: - Document Detection Overlay
-struct DocumentDetectionOverlay: View {
+// MARK: - Premium Document Detection Overlay
+struct PremiumDetectionOverlay: View {
     let rectangle: VNRectangleObservation
+    let detectionState: DetectionState
+    let captureProgress: Double
+    
+    @State private var pulseOpacity: Double = 0.3
+    @State private var cornerPulse: Double = 1.0
     
     var body: some View {
         GeometryReader { geometry in
-            Path { path in
-                let size = geometry.size
+            ZStack {
+                // Main rectangle outline with state-based styling
+                Path { path in
+                    let size = geometry.size
+                    
+                    // Convert normalized coordinates to view coordinates
+                    // Vision uses bottom-left origin, SwiftUI uses top-left
+                    let topLeft = CGPoint(
+                        x: rectangle.topLeft.x * size.width,
+                        y: (1 - rectangle.topLeft.y) * size.height
+                    )
+                    let topRight = CGPoint(
+                        x: rectangle.topRight.x * size.width,
+                        y: (1 - rectangle.topRight.y) * size.height
+                    )
+                    let bottomRight = CGPoint(
+                        x: rectangle.bottomRight.x * size.width,
+                        y: (1 - rectangle.bottomRight.y) * size.height
+                    )
+                    let bottomLeft = CGPoint(
+                        x: rectangle.bottomLeft.x * size.width,
+                        y: (1 - rectangle.bottomLeft.y) * size.height
+                    )
+                    
+                    path.move(to: topLeft)
+                    path.addLine(to: topRight)
+                    path.addLine(to: bottomRight)
+                    path.addLine(to: bottomLeft)
+                    path.closeSubpath()
+                }
+                .stroke(strokeColor, lineWidth: strokeWidth)
+                .background(
+                    Path { path in
+                        let size = geometry.size
+                        
+                        let topLeft = CGPoint(
+                            x: rectangle.topLeft.x * size.width,
+                            y: (1 - rectangle.topLeft.y) * size.height
+                        )
+                        let topRight = CGPoint(
+                            x: rectangle.topRight.x * size.width,
+                            y: (1 - rectangle.topRight.y) * size.height
+                        )
+                        let bottomRight = CGPoint(
+                            x: rectangle.bottomRight.x * size.width,
+                            y: (1 - rectangle.bottomRight.y) * size.height
+                        )
+                        let bottomLeft = CGPoint(
+                            x: rectangle.bottomLeft.x * size.width,
+                            y: (1 - rectangle.bottomLeft.y) * size.height
+                        )
+                        
+                        path.move(to: topLeft)
+                        path.addLine(to: topRight)
+                        path.addLine(to: bottomRight)
+                        path.addLine(to: bottomLeft)
+                        path.closeSubpath()
+                    }
+                    .fill(fillColor.opacity(pulseOpacity))
+                )
+                .animation(.easeInOut(duration: 0.3), value: detectionState)
+                .animation(.easeInOut(duration: 0.3), value: rectangle.confidence)
                 
-                // Convert normalized coordinates to view coordinates
-                // Vision uses bottom-left origin, SwiftUI uses top-left
-                let topLeft = CGPoint(
-                    x: rectangle.topLeft.x * size.width,
-                    y: (1 - rectangle.topLeft.y) * size.height
-                )
-                let topRight = CGPoint(
-                    x: rectangle.topRight.x * size.width,
-                    y: (1 - rectangle.topRight.y) * size.height
-                )
-                let bottomRight = CGPoint(
-                    x: rectangle.bottomRight.x * size.width,
-                    y: (1 - rectangle.bottomRight.y) * size.height
-                )
-                let bottomLeft = CGPoint(
-                    x: rectangle.bottomLeft.x * size.width,
-                    y: (1 - rectangle.bottomLeft.y) * size.height
-                )
+                // Corner indicators for stable detection
+                if detectionState == .stable {
+                    cornerIndicators(in: geometry.size)
+                        .scaleEffect(cornerPulse)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: cornerPulse)
+                }
                 
-                path.move(to: topLeft)
-                path.addLine(to: topRight)
-                path.addLine(to: bottomRight)
-                path.addLine(to: bottomLeft)
-                path.closeSubpath()
+                // Capture progress ring for auto-capture
+                if detectionState == .stable && captureProgress > 0 {
+                    captureProgressRing(in: geometry.size)
+                }
             }
-            .stroke(Color.green, lineWidth: 3)
-            .animation(.easeInOut(duration: 0.2), value: rectangle.confidence)
+        }
+        .onAppear {
+            startAnimations()
+        }
+        .onChange(of: detectionState) { _, newState in
+            updateAnimationForState(newState)
+        }
+    }
+    
+    private var strokeColor: Color {
+        switch detectionState {
+        case .searching: return Color.white.opacity(0.5)
+        case .found: return Color.yellow
+        case .stable: return Color.green
+        case .capturing: return Color.blue
+        case .processing: return Color.purple
+        case .success: return Color.green
+        }
+    }
+    
+    private var fillColor: Color {
+        switch detectionState {
+        case .searching: return Color.clear
+        case .found: return Color.yellow
+        case .stable: return Color.green
+        case .capturing: return Color.blue
+        case .processing: return Color.purple
+        case .success: return Color.green
+        }
+    }
+    
+    private var strokeWidth: CGFloat {
+        switch detectionState {
+        case .searching: return 2
+        case .found: return 3
+        case .stable: return 4
+        case .capturing: return 5
+        case .processing: return 4
+        case .success: return 6
+        }
+    }
+    
+    private func cornerIndicators(in size: CGSize) -> some View {
+        let cornerSize: CGFloat = 20
+        let corners = [
+            CGPoint(x: rectangle.topLeft.x * size.width, y: (1 - rectangle.topLeft.y) * size.height),
+            CGPoint(x: rectangle.topRight.x * size.width, y: (1 - rectangle.topRight.y) * size.height),
+            CGPoint(x: rectangle.bottomLeft.x * size.width, y: (1 - rectangle.bottomLeft.y) * size.height),
+            CGPoint(x: rectangle.bottomRight.x * size.width, y: (1 - rectangle.bottomRight.y) * size.height)
+        ]
+        
+        return ForEach(0..<corners.count, id: \.self) { index in
+            RoundedRectangle(cornerRadius: 3)
+                .stroke(Color.green, lineWidth: 3)
+                .frame(width: cornerSize, height: cornerSize)
+                .position(corners[index])
+        }
+    }
+    
+    private func captureProgressRing(in size: CGSize) -> some View {
+        let center = CGPoint(
+            x: size.width / 2,
+            y: size.height / 2
+        )
+        
+        return Circle()
+            .trim(from: 0, to: captureProgress)
+            .stroke(Color.green, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+            .frame(width: 60, height: 60)
+            .rotationEffect(.degrees(-90))
+            .position(center)
+            .animation(.easeInOut(duration: 0.1), value: captureProgress)
+    }
+    
+    private func startAnimations() {
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+            pulseOpacity = 0.1
+        }
+        
+        withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+            cornerPulse = 1.1
+        }
+    }
+    
+    private func updateAnimationForState(_ state: DetectionState) {
+        switch state {
+        case .found:
+            pulseOpacity = 0.2
+        case .stable:
+            pulseOpacity = 0.15
+        case .capturing, .success:
+            pulseOpacity = 0.3
+        default:
+            pulseOpacity = 0.1
         }
     }
 }
